@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-export type MonsterType = 'shambler' | 'runner' | 'crawler' | 'brute' | 'charred';
+export type MonsterType = 'shambler' | 'runner' | 'crawler' | 'brute' | 'charred'
+  | 'breaker' | 'lurker' | 'furnace' | 'spitter';
 export type MonsterVoiceEvent = 'spawn' | 'ambient' | 'hurt' | 'attack' | 'death';
 
 interface VoiceProfile {
@@ -36,6 +37,22 @@ const PROFILES: Record<MonsterType, VoiceProfile> = {
     pitch: 126, duration: 1.35, formants: [690, 1500], breathFrequency: 1750, breathAmount: 0.3,
     waveform: 'sawtooth', volume: 0.14, vibratoRate: 5.8, vibratoDepth: 0.05,
   },
+  breaker: {
+    pitch: 38, duration: 2.45, formants: [180, 430], breathFrequency: 320, breathAmount: 0.22,
+    waveform: 'sawtooth', volume: 0.29, vibratoRate: 1.1, vibratoDepth: 0.03,
+  },
+  lurker: {
+    pitch: 62, duration: 1.72, formants: [270, 760], breathFrequency: 680, breathAmount: 0.34,
+    waveform: 'sawtooth', volume: 0.22, vibratoRate: 2.9, vibratoDepth: 0.08,
+  },
+  furnace: {
+    pitch: 98, duration: 1.8, formants: [540, 1280], breathFrequency: 1900, breathAmount: 0.4,
+    waveform: 'sawtooth', volume: 0.22, vibratoRate: 5.1, vibratoDepth: 0.055,
+  },
+  spitter: {
+    pitch: 84, duration: 1.5, formants: [430, 1120], breathFrequency: 1450, breathAmount: 0.42,
+    waveform: 'sawtooth', volume: 0.2, vibratoRate: 3.6, vibratoDepth: 0.075,
+  },
 };
 
 const EVENT_SHAPE: Record<MonsterVoiceEvent, { duration: number; pitch: number; volume: number }> = {
@@ -67,7 +84,10 @@ export class MonsterAudioSystem {
     listenerY: number,
   ): boolean {
     const context = this.context();
-    const voiceLimit = event === 'ambient' ? 3 : event === 'spawn' ? 4 : event === 'hurt' ? 6 : this.maxVoices;
+    const apex = type === 'breaker' || type === 'lurker' || type === 'furnace' || type === 'spitter';
+    const voiceLimit = apex
+      ? this.maxVoices + 2
+      : event === 'ambient' ? 3 : event === 'spawn' ? 4 : event === 'hurt' ? 6 : this.maxVoices;
     if (!context || context.state !== 'running' || this.paused || this.activeVoices >= voiceLimit) return false;
 
     const distance = Phaser.Math.Distance.Between(x, y, listenerX, listenerY);
@@ -106,7 +126,7 @@ export class MonsterAudioSystem {
     undertone.type = 'triangle';
     undertone.frequency.setValueAtTime(pitch * 0.505, now);
     undertone.frequency.exponentialRampToValueAtTime(Math.max(24, pitch * 0.505 * this.endPitch(type, event)), now + duration);
-    undertoneGain.gain.value = type === 'brute' ? 0.5 : 0.24;
+    undertoneGain.gain.value = type === 'breaker' ? 0.62 : type === 'brute' ? 0.5 : 0.24;
     firstFormant.type = 'bandpass';
     firstFormant.frequency.value = profile.formants[0] * Phaser.Math.FloatBetween(0.94, 1.06);
     firstFormant.Q.value = 5.5;
@@ -114,7 +134,7 @@ export class MonsterAudioSystem {
     secondFormant.frequency.value = profile.formants[1] * Phaser.Math.FloatBetween(0.94, 1.06);
     secondFormant.Q.value = 7;
     firstFormantGain.gain.value = 0.92;
-    secondFormantGain.gain.value = type === 'crawler' ? 0.34 : 0.5;
+    secondFormantGain.gain.value = type === 'crawler' || type === 'lurker' ? 0.34 : 0.5;
     voice.connect(firstFormant).connect(firstFormantGain).connect(output);
     voice.connect(secondFormant).connect(secondFormantGain).connect(output);
     undertone.connect(undertoneGain).connect(firstFormant);
@@ -132,8 +152,8 @@ export class MonsterAudioSystem {
     noiseSource.loop = true;
     noiseFilter.type = 'bandpass';
     noiseFilter.frequency.setValueAtTime(profile.breathFrequency, now);
-    noiseFilter.Q.value = type === 'charred' ? 1.8 : 1.1;
-    if (type === 'crawler') {
+    noiseFilter.Q.value = type === 'furnace' ? 2.4 : type === 'charred' ? 1.8 : type === 'spitter' ? 3.1 : 1.1;
+    if (type === 'crawler' || type === 'lurker') {
       noiseFilter.frequency.exponentialRampToValueAtTime(310, now + duration);
       noiseFilter.Q.value = 3.8;
     }
@@ -165,11 +185,16 @@ export class MonsterAudioSystem {
   }
 
   private endPitch(type: MonsterType, event: MonsterVoiceEvent): number {
-    if (event === 'death') return type === 'charred' ? 0.62 : 0.68;
+    if (event === 'death') {
+      if (type === 'furnace') return 0.56;
+      if (type === 'charred') return 0.62;
+      if (type === 'breaker') return 0.6;
+      return 0.68;
+    }
     if (event === 'hurt') return 0.9;
     if (event === 'attack') return 0.86;
     if (type === 'runner') return 0.91;
-    if (type === 'crawler') return 0.82;
+    if (type === 'crawler' || type === 'lurker') return 0.82;
     return 0.88;
   }
 

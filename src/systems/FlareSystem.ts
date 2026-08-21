@@ -1,16 +1,18 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../config/constants';
+import { GAME_HEIGHT, GAME_WIDTH, GENERATOR_POSITION } from '../config/constants';
 import type { AudioSystem } from './AudioSystem';
 import type { LightingSystem } from './LightingSystem';
 
 interface FlareHooks {
   isGeneratorOnline: () => boolean;
+  isGeneratorUnstable: () => boolean;
   isGameOver: () => boolean;
   announce: (title: string, subtitle: string) => void;
+  setGeneratorStatus: (status: string) => void;
 }
 
 export class FlareSystem {
-  private readonly capacity = 2;
+  private readonly capacity = 3;
   private readonly rechargeDuration = 45000;
   private readonly firstChargeDuration = 38000;
   private readonly key: Phaser.Input.Keyboard.Key;
@@ -22,6 +24,11 @@ export class FlareSystem {
   private lastUpdate = 0;
   private activeUntil = 0;
   private launching = false;
+  private pendingCartridge?: Phaser.Physics.Arcade.Image;
+  private pendingOverlap?: Phaser.Physics.Arcade.Collider;
+  private lastInventoryLabel = '';
+  private lastDetailLabel = '';
+  private lastGeneratorLabel = '';
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -37,14 +44,18 @@ export class FlareSystem {
       backgroundColor: '#090c0acc',
       padding: { x: 5, y: 2 },
     };
-    this.inventoryText = scene.add.text(GAME_WIDTH - 25, 58, '', {
+    this.inventoryText = scene.add.text(GAME_WIDTH - 25, 16, '', {
       ...textStyle,
-      fontSize: '13px',
+      fontSize: '14px',
+      color: '#ff7663',
+      padding: { x: 7, y: 4 },
     }).setOrigin(1, 0).setDepth(30);
-    this.chargeText = scene.add.text(GAME_WIDTH - 25, 78, '', {
+    this.chargeText = scene.add.text(GAME_WIDTH - 25, 43, '', {
       ...textStyle,
-      fontSize: '10px',
-      color: '#a99d83',
+      fontSize: '11px',
+      color: '#e6d7c4',
+      lineSpacing: 2,
+      padding: { x: 7, y: 4 },
     }).setOrigin(1, 0).setDepth(30);
     this.refreshHud();
   }
@@ -53,18 +64,12 @@ export class FlareSystem {
     const elapsed = this.lastUpdate === 0 ? 0 : Math.min(100, time - this.lastUpdate);
     this.lastUpdate = time;
 
-    if (this.charges < this.capacity && this.hooks.isGeneratorOnline()) {
+    if (!this.pendingCartridge && this.hooks.isGeneratorOnline()) {
       this.rechargeElapsed += elapsed;
       const duration = this.unlocked ? this.rechargeDuration : this.firstChargeDuration;
       if (this.rechargeElapsed >= duration) {
-        this.rechargeElapsed -= duration;
-        this.charges += 1;
-        if (!this.unlocked) {
-          this.unlocked = true;
-          this.hooks.announce('AERIAL FLARE READY', 'GENERATOR FABRICATED ONE • PRESS F TO FIRE');
-        } else {
-          this.hooks.announce('FLARE FABRICATED', 'AERIAL FLARE CHARGE ADDED');
-        }
+        this.rechargeElapsed = 0;
+        this.spawnFabricatedCartridge();
       }
     }
 
@@ -76,13 +81,124 @@ export class FlareSystem {
     return this.charges < this.capacity;
   }
 
+  chargeCount(): number {
+    return this.charges;
+  }
+
   addCharge(): boolean {
     if (!this.canAddCharge()) return false;
     this.charges += 1;
     this.unlocked = true;
-    this.rechargeElapsed = 0;
     this.refreshHud();
     return true;
+  }
+
+  private spawnFabricatedCartridge(): void {
+    const startX = GENERATOR_POSITION.x + 20;
+    const startY = GENERATOR_POSITION.y + 2;
+    const targetX = GENERATOR_POSITION.x + 52;
+    const targetY = GENERATOR_POSITION.y + 7;
+    const shadow = this.scene.add.ellipse(startX, startY + 7, 20, 9, 0x000000, 0.3)
+      .setDepth(2)
+      .setScale(0.45);
+    const glow = this.scene.add.image(startX, startY, 'glow')
+      .setDepth(16)
+      .setScale(0.38)
+      .setAlpha(0.35)
+      .setTint(0xff3d24)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const coreGlow = this.scene.add.image(startX, startY, 'glow')
+      .setDepth(16)
+      .setScale(0.16)
+      .setAlpha(0.7)
+      .setTint(0xff8b54)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const pickup = this.scene.physics.add.image(startX, startY, 'flare-cartridge')
+      .setDepth(3)
+      .setScale(0.55)
+      .setAlpha(0.3)
+      .setRotation(-0.55)
+      .setData({ ready: false, shadow, glow, coreGlow });
+    const body = pickup.body as Phaser.Physics.Arcade.Body;
+    body.setCircle(11, 21, 21).setAllowGravity(false);
+    this.pendingCartridge = pickup;
+    this.pendingOverlap = this.scene.physics.add.overlap(this.player, pickup, () => this.collectCartridge());
+    this.audio.playTone(260, 0.14, 0.035, 'square');
+    this.audio.playNoise(0.12, 0.025, 1600);
+
+    this.scene.tweens.add({
+      targets: pickup,
+      x: targetX,
+      y: targetY,
+      scale: 1,
+      alpha: 1,
+      rotation: 0.18,
+      duration: 620,
+      ease: 'Back.out',
+      onUpdate: () => {
+        shadow.setPosition(pickup.x + 1, pickup.y + 7).setScale(0.45 + pickup.scale * 0.55);
+        glow.setPosition(pickup.x, pickup.y).setScale(0.3 + pickup.scale * 0.5);
+        coreGlow.setPosition(pickup.x, pickup.y).setScale(0.12 + pickup.scale * 0.2);
+      },
+      onComplete: () => {
+        if (!pickup.active) return;
+        pickup.setData('ready', true);
+        this.scene.tweens.add({
+          targets: pickup,
+          y: targetY - 4,
+          duration: 720,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+          onUpdate: () => {
+            shadow.setY(pickup.y + 7);
+            glow.setY(pickup.y);
+            coreGlow.setY(pickup.y);
+          },
+        });
+        this.scene.tweens.add({
+          targets: glow,
+          alpha: { from: 0.58, to: 0.95 },
+          scale: { from: 0.72, to: 0.94 },
+          duration: 760,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+        this.scene.tweens.add({
+          targets: coreGlow,
+          alpha: { from: 0.76, to: 1 },
+          scale: { from: 0.26, to: 0.38 },
+          duration: 520,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+      },
+    });
+    this.hooks.announce('FLARE CARTRIDGE READY', 'GENERATOR OUTPUT • COLLECT IT ON THE RIGHT');
+  }
+
+  private collectCartridge(): void {
+    const pickup = this.pendingCartridge;
+    if (!pickup?.active || !pickup.getData('ready') || this.hooks.isGameOver() || !this.canAddCharge()) return;
+
+    const shadow = pickup.getData('shadow');
+    const glow = pickup.getData('glow');
+    const coreGlow = pickup.getData('coreGlow');
+    [pickup, glow, coreGlow].forEach((target) => this.scene.tweens.killTweensOf(target));
+    shadow?.destroy();
+    glow?.destroy();
+    coreGlow?.destroy();
+    this.pendingOverlap?.destroy();
+    pickup.destroy();
+    this.pendingCartridge = undefined;
+    this.pendingOverlap = undefined;
+    this.charges += 1;
+    this.unlocked = true;
+    this.audio.playTone(520, 0.13, 0.035, 'triangle');
+    this.hooks.announce('FLARE COLLECTED', `${this.charges} / ${this.capacity} READY • PRESS F TO LAUNCH`);
+    this.refreshHud();
   }
 
   private fire(angle: number, time: number): void {
@@ -141,20 +257,47 @@ export class FlareSystem {
   }
 
   private refreshHud(): void {
-    this.inventoryText.setVisible(this.unlocked);
-    if (!this.unlocked) return;
-
-    const slots = Array.from({ length: this.capacity }, (_, index) => index < this.charges ? '◆' : '◇').join('');
-    this.inventoryText.setText(`F  AERIAL FLARES  ${slots}`);
+    const visible = this.unlocked || !!this.pendingCartridge;
+    this.inventoryText.setVisible(visible);
+    this.chargeText.setVisible(visible);
+    const inventoryLabel = `FLARE GUN  •  ${this.charges} / ${this.capacity}`;
+    if (inventoryLabel !== this.lastInventoryLabel) {
+      this.lastInventoryLabel = inventoryLabel;
+      this.inventoryText.setText(inventoryLabel);
+    }
     const generatorOnline = this.hooks.isGeneratorOnline();
-    this.chargeText.setVisible(generatorOnline);
-    if (!generatorOnline) return;
+    const generatorUnstable = this.hooks.isGeneratorUnstable();
+    const generatorLabel = generatorUnstable ? 'GENERATOR UNSTABLE' : 'GENERATOR';
+    const duration = this.unlocked ? this.rechargeDuration : this.firstChargeDuration;
+    const seconds = Math.max(0, Math.ceil((duration - this.rechargeElapsed) / 1000));
+    const productionStatus = !generatorOnline
+      ? 'GENERATOR OFFLINE'
+      : this.pendingCartridge
+        ? this.charges >= this.capacity
+          ? 'CARTRIDGE WAITING • INVENTORY FULL'
+          : 'COLLECT CARTRIDGE AT GENERATOR'
+        : `${generatorLabel} MAKING FLARE • ${seconds}s`;
 
-    if (this.charges >= this.capacity) {
-      this.chargeText.setText('GENERATOR FABRICATOR  •  STANDBY').setColor('#a99d83');
+    const detailLabel = `[F]  LAUNCH AERIAL FLARE\n${productionStatus}`;
+    const detailKey = `${generatorOnline}:${detailLabel}`;
+    if (detailKey !== this.lastDetailLabel) {
+      this.lastDetailLabel = detailKey;
+      this.chargeText
+        .setText(detailLabel)
+        .setColor(generatorOnline ? '#e6d7c4' : '#ef6755');
+    }
+
+    if (generatorOnline) {
+      const markerStatus = this.pendingCartridge
+        ? 'CARTRIDGE READY'
+        : `FLARE IN ${seconds}s`;
+      const markerKey = `${generatorUnstable}:${markerStatus}`;
+      if (markerKey !== this.lastGeneratorLabel) {
+        this.lastGeneratorLabel = markerKey;
+        this.hooks.setGeneratorStatus(markerStatus);
+      }
     } else {
-      const percent = Math.floor((this.rechargeElapsed / this.rechargeDuration) * 100);
-      this.chargeText.setText(`GENERATOR FABRICATOR  •  ${String(percent).padStart(2, '0')}%`).setColor('#a99d83');
+      this.lastGeneratorLabel = '';
     }
   }
 }

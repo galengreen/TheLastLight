@@ -4,12 +4,17 @@ interface SupplyHooks {
   getHealth: () => number;
   heal: (amount: number) => void;
   canAddFlare: () => boolean;
+  getFlareCharges: () => number;
   addFlare: () => boolean;
+  needsRepair: () => boolean;
+  getBaseIntegrity: () => number;
+  repairOutpost: () => void;
   announce: (title: string, subtitle: string) => void;
   isGameOver: () => boolean;
 }
 
 type DropState = 'waiting' | 'descending' | 'ready' | 'opened';
+type PickupKind = 'medkit' | 'adrenaline' | 'flare' | 'repair';
 
 export class SupplySystem {
   private readonly pickups: Phaser.Physics.Arcade.Group;
@@ -21,8 +26,10 @@ export class SupplySystem {
   private adrenalineUntil = 0;
   private cache?: Phaser.GameObjects.Image;
   private cacheShadow?: Phaser.GameObjects.Ellipse;
-  private cacheGlow?: Phaser.GameObjects.Image;
+  private cacheBeaconGlow?: Phaser.GameObjects.Image;
+  private cacheBeaconLight?: Phaser.GameObjects.Arc;
   private cacheCollider?: Phaser.Physics.Arcade.Collider;
+  private activePickup?: any;
   private readonly dropX = 585;
   private readonly dropY = 270;
 
@@ -36,31 +43,31 @@ export class SupplySystem {
     scene.physics.add.overlap(player, this.pickups, (_player, pickup) => this.collect(pickup as any));
 
     this.landingZone = scene.add.graphics({ x: this.dropX, y: this.dropY })
-      .setDepth(15)
-      .setAlpha(0.34)
+      .setDepth(2)
+      .setAlpha(0.72)
       .setVisible(false);
-    this.landingZone.lineStyle(1, 0xd0b86f, 0.8).strokeCircle(0, 0, 29);
-    this.landingZone.lineStyle(1, 0xd0b86f, 0.34).strokeCircle(0, 0, 35);
+    this.landingZone.lineStyle(2, 0xd9e7a0, 0.95).strokeCircle(0, 0, 30);
+    this.landingZone.lineStyle(1, 0x82b96f, 0.72).strokeCircle(0, 0, 36);
     this.landingZone.lineBetween(-39, 0, -28, 0).lineBetween(28, 0, 39, 0);
     this.landingZone.lineBetween(0, -39, 0, -28).lineBetween(0, 28, 0, 39);
     this.landingLabel = scene.add.text(this.dropX, this.dropY + 40, 'SUPPLY READY', {
       fontFamily: '"Share Tech Mono", monospace',
-      fontSize: '10px',
-      color: '#cbb879',
-      backgroundColor: '#0a0d0baa',
-      padding: { x: 4, y: 2 },
-    }).setOrigin(0.5).setDepth(18).setAlpha(0.62).setVisible(false);
+      fontSize: '11px',
+      color: '#e4efbd',
+      backgroundColor: '#081008e8',
+      padding: { x: 6, y: 3 },
+    }).setOrigin(0.5).setDepth(18).setAlpha(0.92).setVisible(false);
     this.prompt = scene.add.text(this.dropX, this.dropY - 48, 'E  OPEN SUPPLY DROP', {
       fontFamily: '"Share Tech Mono", monospace',
-      fontSize: '12px',
-      color: '#f0d889',
-      backgroundColor: '#090c0acc',
-      padding: { x: 6, y: 3 },
+      fontSize: '13px',
+      color: '#f1f4d2',
+      backgroundColor: '#071007ee',
+      padding: { x: 8, y: 4 },
     }).setOrigin(0.5).setDepth(40).setVisible(false);
 
     scene.tweens.add({
       targets: [this.landingZone, this.landingLabel],
-      alpha: { from: 0.28, to: 0.58 },
+      alpha: { from: 0.64, to: 1 },
       duration: 900,
       yoyo: true,
       repeat: -1,
@@ -105,22 +112,16 @@ export class SupplySystem {
     this.state = 'descending';
     this.hooks.announce('SUPPLY DROP INBOUND', 'LOCATE THE DROP • PRESS E TO OPEN');
 
-    this.cacheShadow = this.scene.add.ellipse(this.dropX, this.dropY + 7, 38, 18, 0x000000, 0.36)
-      .setDepth(2)
+    const incomingShadow = this.scene.add.ellipse(this.dropX, this.dropY + 7, 38, 18, 0x000000, 0.36)
+      .setDepth(1)
       .setScale(0.25);
-    this.cacheGlow = this.scene.add.image(this.dropX, this.dropY, 'glow')
-      .setDepth(16)
-      .setScale(0.5)
-      .setAlpha(0)
-      .setTint(0xe0bd5d)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    this.cache = this.scene.add.image(this.dropX - 54, this.dropY - 85, 'supply-cache-closed')
-      .setDepth(5)
+    const incomingCache = this.scene.add.image(this.dropX - 54, this.dropY - 85, 'supply-cache-closed')
+      .setDepth(2)
       .setScale(1.45)
       .setAlpha(0);
 
     this.scene.tweens.add({
-      targets: this.cache,
+      targets: incomingCache,
       x: this.dropX,
       y: this.dropY,
       scale: 1,
@@ -128,53 +129,133 @@ export class SupplySystem {
       duration: 1050,
       ease: 'Quad.in',
       onComplete: () => {
+        if (this.hooks.isGameOver()) {
+          incomingCache.destroy();
+          incomingShadow.destroy();
+          return;
+        }
+        this.clearDrop();
+        this.cache = incomingCache;
+        this.cacheShadow = incomingShadow;
         this.state = 'ready';
+        this.landingLabel.setText('SUPPLY READY');
         this.landingZone.setVisible(true);
         this.landingLabel.setVisible(true);
-        this.scene.physics.add.existing(this.cache!);
-        const body = (this.cache as any).body as Phaser.Physics.Arcade.Body;
-        body.setSize(38, 24, true).setImmovable(true);
+        this.scene.physics.add.existing(this.cache!, true);
+        const body = (this.cache as any).body as Phaser.Physics.Arcade.StaticBody;
+        body.setSize(38, 24).setOffset(13, 20);
         this.cacheCollider = this.scene.physics.add.collider(this.player, this.cache!);
+        this.showCacheBeacon();
         this.scene.cameras.main.shake(90, 0.0025);
-        this.scene.tweens.add({ targets: this.cacheGlow, alpha: 0.28, duration: 240 });
       },
     });
-    this.scene.tweens.add({ targets: this.cacheShadow, scale: 1, duration: 1050, ease: 'Quad.in' });
+    this.scene.tweens.add({ targets: incomingShadow, scale: 1, duration: 1050, ease: 'Quad.in' });
   }
 
   private openDrop(): void {
     if (this.state !== 'ready' || !this.cache) return;
     this.state = 'opened';
     this.prompt.setVisible(false);
+    this.hideCacheBeacon();
     this.cacheCollider?.destroy();
     this.cacheCollider = undefined;
-    ((this.cache as any).body as Phaser.Physics.Arcade.Body).enable = false;
+    ((this.cache as any).body as Phaser.Physics.Arcade.StaticBody).enable = false;
     this.cache.setTexture('supply-cache-open');
     this.scene.tweens.add({ targets: this.cache, scaleY: 1.08, duration: 80, yoyo: true });
-    const kind = this.hooks.getHealth() <= 65
-      ? 'medkit'
-      : this.hooks.canAddFlare() && Phaser.Math.Between(0, 99) < 35
-        ? 'flare'
-        : 'adrenaline';
-    this.spawnPickup(kind, this.cache.x, this.cache.y - 30);
+    const kind = this.choosePickupKind();
+    this.landingLabel.setText(kind === 'medkit'
+      ? 'MEDKIT READY'
+      : kind === 'repair'
+        ? 'REPAIR KIT READY'
+      : kind === 'flare'
+        ? 'FLARE CARTRIDGE'
+        : 'ADRENALINE READY');
+    this.spawnPickup(kind, this.cache.x, this.cache.y - 8);
+    this.scene.time.delayedCall(28000, () => this.beginDrop());
   }
 
-  private spawnPickup(kind: 'medkit' | 'adrenaline' | 'flare', x: number, y: number): void {
+  private choosePickupKind(): PickupKind {
+    const health = this.hooks.getHealth();
+    const healthUrgency = Phaser.Math.Clamp((40 - health) / 40, 0, 1);
+    const baseUrgency = Phaser.Math.Clamp((0.4 - this.hooks.getBaseIntegrity()) / 0.4, 0, 1);
+    const noFlares = this.hooks.getFlareCharges() === 0;
+    const emergency = healthUrgency > 0 || baseUrgency > 0 || noFlares;
+    const choices: { kind: PickupKind; weight: number }[] = [];
+
+    if (health < 100) choices.push({ kind: 'medkit', weight: 20 + healthUrgency * 100 });
+    if (this.hooks.needsRepair()) choices.push({ kind: 'repair', weight: 20 + baseUrgency * 100 });
+    if (this.hooks.canAddFlare()) choices.push({ kind: 'flare', weight: 20 + (noFlares ? 100 : 0) });
+    choices.push({ kind: 'adrenaline', weight: 25 + (emergency ? 0 : 35) });
+
+    let roll = Phaser.Math.FloatBetween(0, choices.reduce((total, choice) => total + choice.weight, 0));
+    for (const choice of choices) {
+      roll -= choice.weight;
+      if (roll <= 0) return choice.kind;
+    }
+    return 'adrenaline';
+  }
+
+  private showCacheBeacon(): void {
+    const x = this.dropX + 18;
+    const y = this.dropY - 7;
+    this.cacheBeaconGlow = this.scene.add.image(x, y, 'glow')
+      .setDepth(16)
+      .setScale(0.28)
+      .setAlpha(0.16)
+      .setTint(0x77ff76)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.cacheBeaconLight = this.scene.add.circle(x, y, 2, 0xb6ff96, 0.95).setDepth(17);
+    this.scene.tweens.add({
+      targets: this.cacheBeaconGlow,
+      alpha: { from: 0.1, to: 0.42 },
+      duration: 240,
+      hold: 180,
+      yoyo: true,
+      repeat: -1,
+      repeatDelay: 520,
+    });
+    this.scene.tweens.add({
+      targets: this.cacheBeaconLight,
+      alpha: { from: 0.4, to: 1 },
+      duration: 180,
+      hold: 180,
+      yoyo: true,
+      repeat: -1,
+      repeatDelay: 640,
+    });
+  }
+
+  private hideCacheBeacon(): void {
+    [this.cacheBeaconGlow, this.cacheBeaconLight].forEach((beacon) => {
+      if (!beacon) return;
+      this.scene.tweens.killTweensOf(beacon);
+      beacon.destroy();
+    });
+    this.cacheBeaconGlow = undefined;
+    this.cacheBeaconLight = undefined;
+  }
+
+  private spawnPickup(kind: PickupKind, x: number, y: number): void {
     const shadow = this.scene.add.ellipse(x + 1, y + 6, 20, 9, 0x000000, 0.28).setDepth(2);
     const glow = this.scene.add.image(x, y, 'glow')
       .setDepth(16)
-      .setScale(0.46)
-      .setAlpha(0.25)
-      .setTint(kind === 'medkit' ? 0x9fd98e : kind === 'flare' ? 0xff4a2c : 0xffb14c)
+      .setScale(0.82)
+      .setAlpha(0.78)
+      .setTint(kind === 'medkit' || kind === 'repair' ? 0x84e996 : kind === 'flare' ? 0xff4a2c : 0xffb14c)
       .setBlendMode(Phaser.BlendModes.ADD);
-    const texture = kind === 'flare' ? 'flare-cartridge' : kind;
+    const coreGlow = this.scene.add.image(x, y, 'glow')
+      .setDepth(16)
+      .setScale(0.3)
+      .setAlpha(1)
+      .setTint(kind === 'medkit' || kind === 'repair' ? 0xb6ffae : kind === 'flare' ? 0xff6a38 : 0xffd06a)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const texture = kind === 'flare' ? 'flare-cartridge' : kind === 'repair' ? 'repair-kit' : kind;
     const pickup = this.pickups.create(x, y, texture)
-      .setDepth(5)
-      .setScale(kind === 'flare' ? 1.7 : 1)
-      .setData({ kind, shadow, glow });
+      .setDepth(3)
+      .setData({ kind, shadow, glow, coreGlow });
+    this.activePickup = pickup;
     const body = pickup.body as Phaser.Physics.Arcade.Body;
-    if (kind === 'flare') body.setSize(22, 18, true);
-    else body.setCircle(11, 21, 21);
+    body.setCircle(11, 21, 21);
     body.setAllowGravity(false);
     this.scene.tweens.add({
       targets: pickup,
@@ -186,7 +267,26 @@ export class SupplySystem {
       onUpdate: () => {
         shadow.setY(pickup.y + 7);
         glow.setY(pickup.y);
+        coreGlow.setY(pickup.y);
       },
+    });
+    this.scene.tweens.add({
+      targets: glow,
+      alpha: { from: 0.58, to: 0.95 },
+      scale: { from: 0.72, to: 0.94 },
+      duration: 760,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
+    this.scene.tweens.add({
+      targets: coreGlow,
+      alpha: { from: 0.76, to: 1 },
+      scale: { from: 0.26, to: 0.38 },
+      duration: 520,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
     });
   }
 
@@ -196,14 +296,14 @@ export class SupplySystem {
     if (kind === 'medkit' && this.hooks.getHealth() >= 100) return;
     if (kind === 'flare' && !this.hooks.canAddFlare()) return;
 
-    pickup.getData('shadow')?.destroy();
-    pickup.getData('glow')?.destroy();
-    this.scene.tweens.killTweensOf(pickup);
-    pickup.destroy();
+    this.destroyPickup(pickup);
 
     if (kind === 'medkit') {
-      this.hooks.heal(38);
+      this.hooks.heal(100);
       this.hooks.announce('VITALS RESTORED', 'FIELD MEDKIT APPLIED');
+    } else if (kind === 'repair') {
+      this.hooks.repairOutpost();
+      this.hooks.announce('OUTPOST RESTORED', 'GENERATOR, LIGHTS, AND BARRICADES OPERATIONAL');
     } else if (kind === 'flare') {
       this.hooks.addFlare();
       this.hooks.announce('FLARE CARTRIDGE', 'AERIAL FLARE CHARGE ADDED');
@@ -212,14 +312,29 @@ export class SupplySystem {
       this.hooks.announce('ADRENALINE ACTIVE', 'MOVEMENT AND FIRE RATE INCREASED');
     }
     this.clearDrop();
-    this.scene.time.delayedCall(42000, () => this.beginDrop());
+  }
+
+  private destroyPickup(pickup: any): void {
+    if (!pickup?.active) return;
+    pickup.getData('shadow')?.destroy();
+    const glow = pickup.getData('glow');
+    const coreGlow = pickup.getData('coreGlow');
+    this.scene.tweens.killTweensOf(glow);
+    this.scene.tweens.killTweensOf(coreGlow);
+    this.scene.tweens.killTweensOf(pickup);
+    glow?.destroy();
+    coreGlow?.destroy();
+    pickup.destroy();
+    if (this.activePickup === pickup) this.activePickup = undefined;
   }
 
   private clearDrop(): void {
     this.landingZone.setVisible(false);
     this.landingLabel.setVisible(false);
     this.prompt.setVisible(false);
-    const targets = [this.cache, this.cacheShadow, this.cacheGlow].filter(Boolean);
+    this.hideCacheBeacon();
+    this.destroyPickup(this.activePickup);
+    const targets = [this.cache, this.cacheShadow].filter(Boolean);
     this.scene.tweens.add({
       targets,
       alpha: 0,
@@ -228,7 +343,6 @@ export class SupplySystem {
     });
     this.cache = undefined;
     this.cacheShadow = undefined;
-    this.cacheGlow = undefined;
     this.state = 'waiting';
   }
 }

@@ -102,14 +102,7 @@ export class LightingSystem {
     this.glows = this.emitters.map(({ x, y }) => scene.add.image(x, y, 'glow').setScale(1.15));
     this.glows.forEach((light, index) => {
       light.setDepth(16).setAlpha(0.2).setBlendMode(Phaser.BlendModes.ADD);
-      scene.tweens.add({
-        targets: light,
-        alpha: { from: 0.16, to: 0.23 },
-        duration: 950 + index * 170,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.inOut',
-      });
+      this.pulseGlow(light, index);
     });
 
     scene.time.addEvent({ delay: 170, callback: onDust, loop: true });
@@ -309,10 +302,53 @@ export class LightingSystem {
     this.scene.tweens.add({ targets: [...this.glows, ...this.beams], alpha: 0, duration: 280 });
   }
 
+  needsRepair(): boolean {
+    return this.generatorDestroyed || this.powerFailureStarted || this.disabledLights.size > 0;
+  }
+
+  isGeneratorUnstable(): boolean {
+    return this.powerFailureStarted;
+  }
+
+  restoreOutpost(): void {
+    this.generatorDestroyed = false;
+    this.powerFailureStarted = false;
+    this.disabledLights.clear();
+    this.scene.tweens.killTweensOf(this);
+    this.scene.tweens.add({
+      targets: this,
+      darknessAmount: 0.84,
+      outpostPower: 1,
+      duration: 950,
+      ease: 'Quad.out',
+    });
+    this.beams.forEach((beam) => {
+      this.scene.tweens.killTweensOf(beam);
+      beam.setVisible(true);
+      this.scene.tweens.add({ targets: beam, alpha: 0.04, duration: 700 });
+    });
+    this.glows.forEach((light, index) => {
+      this.scene.tweens.killTweensOf(light);
+      light.setVisible(true);
+      this.pulseGlow(light, index);
+    });
+  }
+
   disableLight(index: number): void {
     this.disabledLights.add(index);
     this.scene.tweens.killTweensOf(this.glows[index]);
     this.scene.tweens.add({ targets: [this.glows[index], this.beams[index]], alpha: 0, duration: 120 });
+  }
+
+  private pulseGlow(light: Phaser.GameObjects.Image, index: number): void {
+    this.scene.tweens.add({
+      targets: light,
+      alpha: { from: 0.16, to: 0.23 },
+      duration: 950 + index * 170,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
   }
 
   private eraseDirectionalLight(

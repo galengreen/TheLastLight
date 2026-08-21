@@ -6,16 +6,23 @@ import {
   type ChangelogEntry,
   type LeaderboardEntry,
 } from '../api/client';
+import lastNightAliveUrl from '../assets/audio/Last Night Alive.mp3';
+import lastNightAliveAlternateUrl from '../assets/audio/Last Night Alive-2.mp3';
 
 interface HomeScreenOptions {
   onDeploy: (callsign: string) => void;
 }
 
 const CALLSIGN_KEY = 'the-last-light-callsign';
+const HOME_MUSIC_VOLUME = 0.16;
+const HOME_MUSIC_TRACKS = [lastNightAliveUrl, lastNightAliveAlternateUrl];
 
 export class HomeScreen {
   private readonly callsign = element<HTMLInputElement>('callsign');
   private readonly notice = element<HTMLElement>('home-notice');
+  private menuMusic?: HTMLAudioElement;
+  private menuFadeFrame?: number;
+  private menuUnlockHandler?: () => void;
 
   constructor(private readonly options: HomeScreenOptions) {
     this.callsign.value = localStorage.getItem(CALLSIGN_KEY) ?? '';
@@ -35,12 +42,14 @@ export class HomeScreen {
       if (event.key === 'Escape') document.querySelectorAll('.modal').forEach((modal) => modal.classList.add('hidden'));
     });
     void this.refreshStatus();
+    this.startMenuMusic();
   }
 
   show(): void {
     this.notice.textContent = '';
     document.querySelectorAll('.modal').forEach((modal) => modal.classList.add('hidden'));
     void this.refreshStatus();
+    this.startMenuMusic();
   }
 
   private deploy(event: SubmitEvent): void {
@@ -52,7 +61,64 @@ export class HomeScreen {
       return;
     }
     localStorage.setItem(CALLSIGN_KEY, callsign);
+    this.fadeOutMenuMusic();
     this.options.onDeploy(callsign);
+  }
+
+  private startMenuMusic(): void {
+    this.stopMenuMusic();
+    const audio = new Audio(HOME_MUSIC_TRACKS[Math.floor(Math.random() * HOME_MUSIC_TRACKS.length)]);
+    audio.loop = true;
+    audio.volume = HOME_MUSIC_VOLUME;
+    this.menuMusic = audio;
+    void audio.play().catch(() => {
+      if (this.menuMusic !== audio) return;
+      this.menuUnlockHandler = () => {
+        this.removeMenuUnlockHandler();
+        if (this.menuMusic === audio) void audio.play().catch(() => undefined);
+      };
+      document.addEventListener('pointerdown', this.menuUnlockHandler, { once: true });
+      document.addEventListener('keydown', this.menuUnlockHandler, { once: true });
+    });
+  }
+
+  private fadeOutMenuMusic(): void {
+    this.removeMenuUnlockHandler();
+    const audio = this.menuMusic;
+    if (!audio) return;
+    if (this.menuFadeFrame !== undefined) cancelAnimationFrame(this.menuFadeFrame);
+    const startedAt = performance.now();
+    const startingVolume = audio.volume;
+    const fade = (time: number) => {
+      const progress = Math.min(1, (time - startedAt) / 800);
+      audio.volume = startingVolume * (1 - progress);
+      if (progress < 1) {
+        this.menuFadeFrame = requestAnimationFrame(fade);
+        return;
+      }
+      audio.pause();
+      audio.currentTime = 0;
+      if (this.menuMusic === audio) this.menuMusic = undefined;
+      this.menuFadeFrame = undefined;
+    };
+    this.menuFadeFrame = requestAnimationFrame(fade);
+  }
+
+  private stopMenuMusic(): void {
+    this.removeMenuUnlockHandler();
+    if (this.menuFadeFrame !== undefined) {
+      cancelAnimationFrame(this.menuFadeFrame);
+      this.menuFadeFrame = undefined;
+    }
+    this.menuMusic?.pause();
+    this.menuMusic = undefined;
+  }
+
+  private removeMenuUnlockHandler(): void {
+    if (!this.menuUnlockHandler) return;
+    document.removeEventListener('pointerdown', this.menuUnlockHandler);
+    document.removeEventListener('keydown', this.menuUnlockHandler);
+    this.menuUnlockHandler = undefined;
   }
 
   private async refreshStatus(): Promise<void> {

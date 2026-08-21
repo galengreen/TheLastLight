@@ -1,26 +1,44 @@
 import Phaser from 'phaser';
-import { MUSIC_KEYS } from '../assets/manifest';
+import { BOSS_MUSIC_KEYS, DEFEAT_MUSIC_KEYS, MUSIC_KEYS } from '../assets/manifest';
 
 const MUSIC_VOLUME = 0.16;
+const MUSIC_CROSSFADE_MS = 1100;
+
+type BossMusicKind = keyof typeof BOSS_MUSIC_KEYS;
+type MusicSound = Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
+
+interface BossEncounter {
+  kind: BossMusicKind;
+  sequence: number;
+}
+
+const BOSS_MUSIC_PRIORITY: Record<BossMusicKind, number> = {
+  breaker: 1,
+  lurker: 2,
+  furnace: 3,
+  spitter: 4,
+};
 
 export class AudioSystem {
-  private music?: Phaser.Sound.BaseSound;
+  private music?: MusicSound;
+  private musicKey?: string;
   private lastMusicKey?: string;
+  private bossSequence = 0;
+  private readonly bossEncounters = new Map<number, BossEncounter>();
+  private readonly musicTracks = new Set<MusicSound>();
+  private fadingOut = false;
+  private destroyed = false;
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(private readonly scene: Phaser.Scene) {
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy());
+  }
 
   startMusic(): void {
     const play = () => {
-      const activeTrack = MUSIC_KEYS
-        .map((key) => this.scene.sound.get(key))
-        .find((track) => track?.isPlaying);
-      if (activeTrack) {
-        this.music = activeTrack;
-        this.lastMusicKey = activeTrack.key;
-        (activeTrack as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound).setVolume(MUSIC_VOLUME);
-        return;
-      }
-      this.playNextMusicTrack();
+      if (this.destroyed) return;
+      const boss = this.activeBossEncounter();
+      if (boss) this.transitionTo(BOSS_MUSIC_KEYS[boss.kind], true);
+      else this.playNextMusicTrack();
     };
     if (this.scene.sound.locked) {
       this.scene.sound.once(Phaser.Sound.Events.UNLOCKED, play);
@@ -29,17 +47,108 @@ export class AudioSystem {
     }
   }
 
-  private playNextMusicTrack(): void {
+  beginBossTheme(kind: BossMusicKind): number {
+    const encounterId = ++this.bossSequence;
+    this.bossEncounters.set(encounterId, { kind, sequence: encounterId });
+    const active = this.activeBossEncounter();
+    if (active) this.transitionTo(BOSS_MUSIC_KEYS[active.kind], true);
+    return encounterId;
+  }
+
+  endBossTheme(encounterId: number | undefined): void {
+    if (encounterId === undefined || !this.bossEncounters.delete(encounterId)) return;
+    const active = this.activeBossEncounter();
+    if (active) this.transitionTo(BOSS_MUSIC_KEYS[active.kind], true);
+    else this.playNextMusicTrack(true);
+  }
+
+  beginDefeatTheme(): void {
+    if (this.destroyed) return;
+    this.bossEncounters.clear();
+    this.transitionTo(Phaser.Math.RND.pick(DEFEAT_MUSIC_KEYS), true);
+  }
+
+  fadeOutMusic(onComplete: () => void, duration = 700): void {
+    if (this.fadingOut) return;
+    this.fadingOut = true;
+    const tracks = [...this.musicTracks];
+    if (tracks.length === 0) {
+      onComplete();
+      return;
+    }
+    tracks.forEach((track) => this.scene.tweens.killTweensOf(track));
+    this.scene.tweens.add({
+      targets: tracks,
+      volume: 0,
+      duration,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        tracks.forEach((track) => {
+          track.stop();
+          track.destroy();
+          this.musicTracks.delete(track);
+        });
+        this.music = undefined;
+        this.musicKey = undefined;
+        onComplete();
+      },
+    });
+  }
+
+  private activeBossEncounter(): BossEncounter | undefined {
+    return [...this.bossEncounters.values()].sort((left, right) => (
+      BOSS_MUSIC_PRIORITY[right.kind] - BOSS_MUSIC_PRIORITY[left.kind]
+      || right.sequence - left.sequence
+    ))[0];
+  }
+
+  private playNextMusicTrack(resumeInProgress = false): void {
+    if (this.destroyed || this.bossEncounters.size > 0) return;
     const choices = MUSIC_KEYS.filter((key) => key !== this.lastMusicKey);
     const key = Phaser.Math.RND.pick(choices.length > 0 ? choices : MUSIC_KEYS);
     this.lastMusicKey = key;
-    const track = this.scene.sound.add(key, { volume: MUSIC_VOLUME });
+    this.transitionTo(key, false, resumeInProgress ? 60 : 0);
+  }
+
+  private transitionTo(key: string, loop: boolean, seek = 0): void {
+    if (this.destroyed || (this.musicKey === key && this.music)) return;
+
+    const previous = this.music;
+    const track = this.scene.sound.add(key, { volume: previous ? 0 : MUSIC_VOLUME, loop }) as MusicSound;
+    this.musicTracks.add(track);
     this.music = track;
+    this.musicKey = key;
     track.once(Phaser.Sound.Events.COMPLETE, () => {
+      if (this.music !== track || this.destroyed) return;
+      this.music = undefined;
+      this.musicKey = undefined;
+      this.musicTracks.delete(track);
       track.destroy();
       this.playNextMusicTrack();
     });
-    track.play();
+    track.play({ seek: Math.min(seek, Math.max(0, track.duration - 20)) });
+    if (!previous) return;
+
+    this.scene.tweens.killTweensOf(previous);
+    this.scene.tweens.killTweensOf(track);
+    this.scene.tweens.add({
+      targets: track,
+      volume: MUSIC_VOLUME,
+      duration: MUSIC_CROSSFADE_MS,
+      ease: 'Sine.easeInOut',
+    });
+    this.scene.tweens.add({
+      targets: previous,
+      volume: 0,
+      duration: MUSIC_CROSSFADE_MS,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        if (this.music === previous) return;
+        previous.stop();
+        previous.destroy();
+        this.musicTracks.delete(previous);
+      },
+    });
   }
 
   playTone(frequency: number, duration: number, volume: number, type: OscillatorType = 'square'): void {
@@ -109,5 +218,18 @@ export class AudioSystem {
 
   private context(): AudioContext | undefined {
     return 'context' in this.scene.sound ? this.scene.sound.context : undefined;
+  }
+
+  private destroy(): void {
+    this.destroyed = true;
+    this.bossEncounters.clear();
+    this.musicTracks.forEach((track) => {
+      this.scene.tweens.killTweensOf(track);
+      track.stop();
+      track.destroy();
+    });
+    this.musicTracks.clear();
+    this.music = undefined;
+    this.musicKey = undefined;
   }
 }
