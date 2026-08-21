@@ -8,6 +8,7 @@ export interface LeaderboardEntry {
   name: string;
   score: number;
   survivalMs: number;
+  threat: number | null;
   achievedAt: number;
 }
 
@@ -23,6 +24,7 @@ interface PendingScore {
   name: string;
   score: number;
   survivalMs: number;
+  threat?: number;
 }
 
 const PENDING_SCORES_KEY = 'the-last-light-pending-scores';
@@ -54,23 +56,24 @@ export function submitScore(
   name: string,
   score: number,
   survivalMs: number,
+  threat?: number,
   submissionId: string = crypto.randomUUID(),
 ): Promise<{ ok: true }> {
   return request('/api/leaderboard', {
     method: 'POST',
-    body: JSON.stringify({ name, score, survivalMs, submissionId }),
+    body: JSON.stringify({ name, score, survivalMs, threat, submissionId }),
     keepalive: true,
   });
 }
 
-export function queueScore(name: string, score: number, survivalMs: number): Promise<void> {
-  const pending = { submissionId: crypto.randomUUID(), name, score, survivalMs: Math.round(survivalMs) };
+export function queueScore(name: string, score: number, survivalMs: number, threat: number): Promise<void> {
+  const pending = { submissionId: crypto.randomUUID(), name, score, survivalMs: Math.round(survivalMs), threat };
   try {
     const scores = readPendingScores();
     scores.push(pending);
     writePendingScores(scores);
   } catch {
-    return submitScore(name, score, survivalMs, pending.submissionId).then(() => undefined);
+    return submitScore(name, score, survivalMs, threat, pending.submissionId).then(() => undefined);
   }
   return flushPendingScores();
 }
@@ -86,7 +89,7 @@ async function flushScores(): Promise<void> {
   while (true) {
     const score = readPendingScores()[0];
     if (!score) return;
-    await submitScore(score.name, score.score, score.survivalMs, score.submissionId);
+    await submitScore(score.name, score.score, score.survivalMs, score.threat, score.submissionId);
     const scores = readPendingScores();
     const submitted = scores.findIndex((entry) => sameScore(entry, score));
     if (submitted >= 0) {
@@ -126,7 +129,9 @@ function isPendingScore(value: unknown): value is PendingScore {
     && typeof score.survivalMs === 'number'
     && Number.isInteger(score.survivalMs)
     && score.survivalMs >= 0
-    && score.survivalMs <= 24 * 60 * 60 * 1000;
+    && score.survivalMs <= 24 * 60 * 60 * 1000
+    && (score.threat === undefined
+      || (Number.isInteger(score.threat) && score.threat >= 1 && score.threat <= 10000));
 }
 
 function sameScore(left: PendingScore, right: PendingScore): boolean {

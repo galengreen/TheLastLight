@@ -963,7 +963,7 @@ export class ArenaScene extends Phaser.Scene {
   private returnToMenu(): void {
     if (!this.isGameOver) {
       window.dispatchEvent(new CustomEvent('last-light:game-over', {
-        detail: { score: this.score, survivalMs: this.time.now - this.startedAt },
+        detail: { score: this.score, survivalMs: this.time.now - this.startedAt, threat: this.director.wave },
       }));
     }
     window.dispatchEvent(new CustomEvent('last-light:return-menu'));
@@ -3036,7 +3036,7 @@ export class ArenaScene extends Phaser.Scene {
     this.isGameOver = true;
     const survivalMs = this.time.now - this.startedAt;
     window.dispatchEvent(new CustomEvent('last-light:game-over', {
-      detail: { score: this.score, survivalMs },
+      detail: { score: this.score, survivalMs, threat: this.director.wave },
     }));
     this.announcementQueue = [];
     this.director.stop();

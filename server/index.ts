@@ -31,7 +31,7 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'POST' && url.pathname === '/api/leaderboard') {
       const body = await readJson(request);
-      const entry = await gameStore.submit(body.name, body.score, body.survivalMs, body.submissionId);
+      const entry = await gameStore.submit(body.name, body.score, body.survivalMs, body.threat, body.submissionId);
       return entry ? json(response, { ok: true, entry }) : json(response, { error: 'Invalid score' }, 400);
     }
     if (request.method === 'GET' && url.pathname === '/api/changelog') {

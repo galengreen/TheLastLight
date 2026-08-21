@@ -401,8 +401,8 @@ button { border-radius: 0; }
 .leaderboard-head,
 .leaderboard-row {
   display: grid;
-  grid-template-columns: 42px 1fr 130px 95px;
-  gap: 12px;
+  grid-template-columns: 36px minmax(120px, 1fr) 110px 64px 82px 82px;
+  gap: 8px;
   align-items: center;
 }
 .leaderboard-head {
@@ -418,6 +418,11 @@ button { border-radius: 0; }
   color: #a99c91;
 }
 .leaderboard-row strong { color: #ddd0be; font-weight: 400; }
+.leaderboard-row .leaderboard-score {
+  color: #f0d8c6;
+  font-size: 16px;
+  font-weight: 700;
+}
 .leaderboard-row.first { background: rgb(127 38 30 / 0.2); color: #eb7059; }
 .leaderboard-row.first strong { color: #ffe3ce; }
 

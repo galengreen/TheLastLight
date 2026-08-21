@@ -167,12 +167,16 @@ export class HomeScreen {
 
 function leaderboardRow(entry: LeaderboardEntry, index: number): HTMLElement {
   const row = document.createElement('div');
+  const eliminations = text('strong', String(entry.score).padStart(5, '0'));
+  eliminations.className = 'leaderboard-score';
   row.className = `leaderboard-row${index === 0 ? ' first' : ''}`;
   row.append(
     text('span', String(index + 1).padStart(2, '0')),
     text('strong', entry.name),
-    text('span', String(entry.score).padStart(5, '0')),
+    eliminations,
+    text('span', entry.threat === null ? '--' : String(entry.threat).padStart(2, '0')),
     text('span', formatDuration(entry.survivalMs)),
+    text('span', formatLeaderboardDate(entry.achievedAt)),
   );
   return row;
 }
@@ -206,6 +210,14 @@ function text<K extends keyof HTMLElementTagNameMap>(tag: K, value: string): HTM
 function formatDuration(milliseconds: number): string {
   const seconds = Math.floor(milliseconds / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function formatLeaderboardDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '--';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = date.toLocaleString(undefined, { month: 'short' }).toUpperCase();
+  return `${day} ${month} ${String(date.getFullYear()).slice(-2)}`;
 }
 
 function formatUpdate(value: string | null): string {

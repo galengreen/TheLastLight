@@ -21,8 +21,8 @@ window.addEventListener('last-light:run-start', () => {
 });
 
 window.addEventListener('last-light:game-over', (event) => {
-  const result = (event as CustomEvent<{ score: number; survivalMs: number }>).detail;
-  void queueScore(callsign, result.score, result.survivalMs).catch(() => undefined);
+  const result = (event as CustomEvent<{ score: number; survivalMs: number; threat: number }>).detail;
+  void queueScore(callsign, result.score, result.survivalMs, result.threat).catch(() => undefined);
 });
 
 window.addEventListener('online', () => void flushPendingScores().catch(() => undefined));

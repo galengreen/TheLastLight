@@ -7,6 +7,7 @@ export interface LeaderboardEntry {
   name: string;
   score: number;
   survivalMs: number;
+  threat: number | null;
   achievedAt: number;
 }
 
@@ -30,7 +31,11 @@ export class GameStore {
       this.data = {
         playCount: validInteger(parsed.playCount, 0, Number.MAX_SAFE_INTEGER) ?? 0,
         leaderboard: Array.isArray(parsed.leaderboard)
-          ? parsed.leaderboard.filter(isLeaderboardEntry).sort(compareScores).slice(0, LEADERBOARD_LIMIT)
+          ? parsed.leaderboard
+            .map(normalizeLeaderboardEntry)
+            .filter((entry): entry is LeaderboardEntry => entry !== null)
+            .sort(compareScores)
+            .slice(0, LEADERBOARD_LIMIT)
           : [],
       };
     } catch (error) {
@@ -58,13 +63,19 @@ export class GameStore {
     name: unknown,
     score: unknown,
     survivalMs: unknown,
+    threat: unknown,
     submissionId?: unknown,
   ): Promise<LeaderboardEntry | null> {
     const normalizedName = normalizeName(name);
     const normalizedScore = validInteger(score, 0, 100000);
     const normalizedSurvival = validDuration(survivalMs);
+    const normalizedThreat = threat === undefined || threat === null ? null : validInteger(threat, 1, 10000);
     const entryId = submissionId === undefined ? randomUUID() : validSubmissionId(submissionId);
-    if (!normalizedName || normalizedScore === null || normalizedSurvival === null || !entryId) return null;
+    if (!normalizedName
+      || normalizedScore === null
+      || normalizedSurvival === null
+      || (threat !== undefined && threat !== null && normalizedThreat === null)
+      || !entryId) return null;
 
     const existing = this.data.leaderboard.find((candidate) => candidate.id === entryId);
     if (existing) {
@@ -77,6 +88,7 @@ export class GameStore {
       name: normalizedName,
       score: normalizedScore,
       survivalMs: normalizedSurvival,
+      threat: normalizedThreat,
       achievedAt: Date.now(),
     };
     this.data.leaderboard.push(entry);
@@ -136,14 +148,19 @@ function validSubmissionId(value: unknown): string | null {
     : null;
 }
 
-function isLeaderboardEntry(value: unknown): value is LeaderboardEntry {
-  if (!value || typeof value !== 'object') return false;
+function normalizeLeaderboardEntry(value: unknown): LeaderboardEntry | null {
+  if (!value || typeof value !== 'object') return null;
   const entry = value as LeaderboardEntry;
-  return typeof entry.id === 'string'
-    && normalizeName(entry.name) === entry.name
-    && validInteger(entry.score, 0, 100000) !== null
-    && validDuration(entry.survivalMs) === entry.survivalMs
-    && validInteger(entry.achievedAt, 0, Number.MAX_SAFE_INTEGER) !== null;
+  const threat = entry.threat === undefined || entry.threat === null
+    ? null
+    : validInteger(entry.threat, 1, 10000);
+  if (typeof entry.id !== 'string'
+    || normalizeName(entry.name) !== entry.name
+    || validInteger(entry.score, 0, 100000) === null
+    || validDuration(entry.survivalMs) !== entry.survivalMs
+    || (entry.threat !== undefined && entry.threat !== null && threat === null)
+    || validInteger(entry.achievedAt, 0, Number.MAX_SAFE_INTEGER) === null) return null;
+  return { ...entry, threat };
 }
 
 function errorMessage(error: unknown): string {
