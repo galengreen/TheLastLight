@@ -970,12 +970,12 @@ export class ArenaScene extends Phaser.Scene {
     const muzzleDistance = 29;
     const muzzleX = this.player.x + Math.cos(angle) * muzzleDistance;
     const muzzleY = this.player.y + Math.sin(angle) * muzzleDistance;
+    const pointBlankZombie = this.findZombieBetweenPlayerAnd(muzzleX, muzzleY);
     const bullet = this.bullets.get(muzzleX, muzzleY, 'bullet');
     if (!bullet) return;
     bullet.enableBody(true, muzzleX, muzzleY, true, true);
     bullet.setDepth(8).setRotation(angle);
     bullet.body.setAllowGravity(false);
-    bullet.setVelocity(Math.cos(angle) * BULLET_SPEED, Math.sin(angle) * BULLET_SPEED);
     const bulletGlow = this.add.image(muzzleX, muzzleY, 'glow')
       .setDepth(17)
       .setScale(0.18)
@@ -983,6 +983,11 @@ export class ArenaScene extends Phaser.Scene {
       .setAlpha(0.32)
       .setBlendMode(Phaser.BlendModes.ADD);
     bullet.setData('glow', bulletGlow);
+    if (pointBlankZombie) {
+      this.hitZombie(bullet, pointBlankZombie);
+    } else {
+      bullet.setVelocity(Math.cos(angle) * BULLET_SPEED, Math.sin(angle) * BULLET_SPEED);
+    }
 
     const flash = this.add.image(muzzleX, muzzleY, 'flash')
       .setScale(1.8)
@@ -1014,6 +1019,47 @@ export class ArenaScene extends Phaser.Scene {
 
     this.player.x -= Math.cos(angle) * 1.4;
     this.player.y -= Math.sin(angle) * 1.4;
+  }
+
+  private findZombieBetweenPlayerAnd(x: number, y: number) {
+    const line = new Phaser.Geom.Line(this.player.x, this.player.y, x, y);
+    let closestZombie = null;
+    let closestDistance = Infinity;
+
+    this.zombies.children.iterate((zombie) => {
+      if (!zombie?.active) return;
+      const body = zombie.body as Phaser.Physics.Arcade.Body;
+      if (!body?.enable) return;
+
+      let intersections: Phaser.Geom.Point[];
+      let startsInside: boolean;
+      if (body.isCircle) {
+        const circle = new Phaser.Geom.Circle(body.center.x, body.center.y, body.halfWidth);
+        if (!Phaser.Geom.Intersects.LineToCircle(line, circle)) return;
+        startsInside = Phaser.Geom.Circle.Contains(circle, this.player.x, this.player.y);
+        intersections = Phaser.Geom.Intersects.GetLineToCircle(line, circle);
+      } else {
+        const rectangle = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
+        if (!Phaser.Geom.Intersects.LineToRectangle(line, rectangle)) return;
+        startsInside = Phaser.Geom.Rectangle.Contains(rectangle, this.player.x, this.player.y);
+        intersections = Phaser.Geom.Intersects.GetLineToRectangle(line, rectangle);
+      }
+
+      const distance = startsInside
+        ? 0
+        : Math.min(...intersections.map((point) => Phaser.Math.Distance.Squared(
+          this.player.x,
+          this.player.y,
+          point.x,
+          point.y,
+        )));
+      if (distance < closestDistance) {
+        closestZombie = zombie;
+        closestDistance = distance;
+      }
+    });
+
+    return closestZombie;
   }
 
   private destroyBullet(bullet): void {
