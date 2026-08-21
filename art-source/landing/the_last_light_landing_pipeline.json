@@ -1,0 +1,27 @@
+{
+  "package": "THE LAST LIGHT landing screen",
+  "hero": {
+    "runtime": "the_last_light_hero_1920x1080.png",
+    "editable_project": "the_last_light_hero_480x270.json",
+    "native_logical": "the_last_light_hero_480x270.png",
+    "preview_2x": "the_last_light_hero_1920x1080_preview_2x.png",
+    "runtime_dimensions": [
+      1920,
+      1080
+    ],
+    "placement": "full viewport; keep left third available for lower-left menu"
+  },
+  "logo": {
+    "runtime": "the_last_light_logo.png",
+    "editable_project": "the_last_light_logo_400x150.json",
+    "reference": "the_last_light_logo_reference.png",
+    "preview_2x": "the_last_light_logo_preview_2x.png",
+    "runtime_dimensions": [
+      800,
+      300
+    ],
+    "placement": "upper-left, approximately x=72..872 and y=56..356 at 1920x1080; scale down proportionally on narrower viewports",
+    "font_caveat": "DejaVu Fonts license; final runtime PNG has no font dependency."
+  },
+  "pipeline": "build_landing_package.py"
+}
