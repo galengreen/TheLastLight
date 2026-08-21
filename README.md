@@ -1,31 +1,150 @@
-# Last Light
+# The Last Light
 
-A small pixel-art top-down survival shooter built with Phaser 3.
+The Last Light is a small pixel-art top-down survival shooter about holding a failing floodlit outpost against an endless horde. It uses a deliberately limited asset set and leans on dynamic lighting, projected shadows, procedural ambience, reactive effects, and escalating encounter design to create spectacle.
 
-## Run it
+Play at [thelastlight.alexheffernan.dev](https://thelastlight.alexheffernan.dev).
+
+The game is open source, self-hostable, and deployed as a multi-architecture Docker image on a Raspberry Pi.
+
+## Current Release
+
+The current release is a complete score-attack survival game. Runs are intentionally short: learn the outpost, exploit its barrels and floodlights, use supplies and aerial flares, and survive long enough to place on the global leaderboard.
+
+## Features
+
+- Mouse-driven top-down shooting with responsive recoil, impacts, casings, blood, and explosions
+- Dynamic darkness, directional floodlights, aerial crimson flares, occlusion, and projected shadows
+- Four infected archetypes with distinct silhouettes, movement, health, and audio behavior
+- A wave director that escalates pressure and introduces threats over time
+- Generator-fabricated flares and delayed supply drops containing health, adrenaline, or flare charges
+- Procedural monster vocals and combat audio with a rotating original soundtrack
+- Persistent global deployment count, leaderboard, and repository-driven changelog
+- Development-only collision visualization that is excluded from production builds
+
+## Tech Stack
+
+- [Phaser 3](https://phaser.io/) for gameplay and rendering
+- TypeScript and Vite for the browser client
+- Node.js for static hosting and the small persistence API
+- JSON file persistence with atomic writes
+- Docker, GHCR, and GitHub Actions for ARM64/AMD64 deployment
+
+The browser owns the single-player simulation. The server only serves the built client and stores aggregate deployments and submitted score records; there is no multiplayer session or authoritative game simulation.
+
+## Run Locally
 
 ```sh
 npm install
 npm run dev
 ```
 
-Move with **WASD** or the **arrow keys**. Aim with the cursor, hold the left mouse button to fire, and press **E** to interact with supply drops. After being overrun, click or press **R** to restart.
+The Vite client runs locally with graceful offline fallbacks for server-backed menu data. For the complete production stack:
 
-Pause with **P** or **Escape**.
+```sh
+npm run build
+DATA_DIR=./data npm start
+```
 
-## Development
+Open [http://localhost:3000](http://localhost:3000).
+
+## Controls
+
+- **WASD / arrow keys** — move
+- **Mouse** — aim
+- **Left mouse** — fire
+- **F** — fire an available aerial flare
+- **E** — open a landed supply cache
+- **P / Escape** — pause
+- **R / click after defeat** — redeploy
+
+During `npm run dev` only, press **F2** to toggle collision visualization. The renderer and key binding are excluded from production builds.
+
+## Build And Start
+
+```sh
+npm run typecheck
+npm run build
+npm start
+```
+
+The client is emitted to `dist/client`, and the Node server is emitted to `dist/server`.
+
+## Host With Docker
+
+```sh
+docker build --build-arg BUILD_TIMESTAMP="$(date +%s000)" -t the-last-light:latest .
+THE_LAST_LIGHT_IMAGE=the-last-light:latest docker compose up -d
+```
+
+The Compose service binds to `127.0.0.1:3011` by default and persists data in the `the-last-light-data` volume. Override the host port with `HOST_PORT`.
+
+Useful commands:
+
+```sh
+docker compose logs -f the-last-light
+docker compose pull
+docker compose up -d
+docker compose down
+```
+
+## Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3000` | Internal HTTP server port |
+| `DATA_DIR` | `/data` | Persistent score and deployment storage |
+| `CHANGELOG_REPOSITORY` | `AlexanderHeffernan/TheLastLight` | Repository queried for recent changes |
+| `GITHUB_TOKEN` | unset | Optional token for higher GitHub API limits |
+| `BUILD_TIMESTAMP` | startup time | Millisecond build time shown on the menu |
+| `LAST_UPDATE` | unset | Explicit ISO update time override |
+
+See [`.env.example`](.env.example) for a local template.
+
+## Scripts
+
+- `npm run dev` — run the Vite development client
+- `npm run typecheck` — check browser and server TypeScript
+- `npm run build:changelog` — generate the checked build fallback from GitHub
+- `npm run build:client` — build the Phaser client
+- `npm run build:server` — compile the Node server
+- `npm run build` — run all checks and production builds
+- `npm start` — serve the production build and API
+
+## Project Layout
+
+- `src/scenes/` — Phaser scene lifecycle and combat coordination
+- `src/systems/` — lighting, audio, supplies, flares, and wave direction
+- `src/ui/` — landing screen, modal, and leaderboard behavior
+- `src/assets/` — runtime-ready game assets and typed load manifest
+- `server/` — static server, leaderboard persistence, and changelog API
+- `public/menu/` — landing-screen hero and title artwork
+- `art-source/` — editable deterministic pixel-art pipeline sources
+- `scripts/` — build-time metadata generation
+
+## Architecture Notes
+
+- Gameplay is a fixed-resolution 960×540 Phaser scene scaled to the available desktop viewport.
+- Darkness and light occlusion use cached render textures and bounded shadow-caster updates to preserve performance.
+- A deployment is counted when a gameplay run starts, including redeployments.
+- Leaderboard records rank by eliminations, then survival time. The public single-player client submits these records, so the leaderboard is intended for friendly competition rather than cheat-proof verification.
+- Persistent data is written through a serialized queue to a temporary file and atomically renamed.
+- GitHub Actions publishes both ARM64 and AMD64 images to GHCR on pushes to `main`.
+
+## Contributing
+
+Contributions and issue reports are welcome. Before opening a pull request, run:
 
 ```sh
 npm run typecheck
 npm run build
 ```
 
-Collision visualization is disabled by default. During `npm run dev` only, press **F2** to toggle it. The debug renderer and key binding are excluded from production builds.
+## Credits
 
-## Structure
+- **Alexander Heffernan** — creator, developer, game designer, and pixel-art pipeline direction
+- Original music generated for The Last Light
+- Built with Phaser and open-source web tooling
 
-- `src/scenes/` coordinates Phaser scene lifecycle and gameplay.
-- `src/systems/` owns focused stateful concerns such as audio, lighting, and wave direction.
-- `src/config/` contains shared tuning constants and the Phaser configuration.
-- `src/assets/` contains runtime-ready assets and their typed load manifest.
-- `art-source/` contains editable pixel-art pipeline sources that are not shipped at runtime.
+## License
+
+[MIT](LICENSE) © 2026 Alexander Heffernan
