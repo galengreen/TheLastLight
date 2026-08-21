@@ -1466,8 +1466,9 @@ export class ArenaScene extends Phaser.Scene {
 
   gameOver() {
     this.isGameOver = true;
+    const survivalMs = this.time.now - this.startedAt;
     window.dispatchEvent(new CustomEvent('last-light:game-over', {
-      detail: { score: this.score, survivalMs: this.time.now - this.startedAt },
+      detail: { score: this.score, survivalMs },
     }));
     this.announcementQueue = [];
     this.director.stop();
@@ -1493,7 +1494,9 @@ export class ArenaScene extends Phaser.Scene {
       stroke: '#3b100e',
       strokeThickness: 8,
     }).setOrigin(0.5).setScale(1.5);
-    const result = this.add.text(WIDTH / 2, HEIGHT / 2 - 20, `${this.score}  HOSTILES ELIMINATED`, {
+    const survivalSeconds = Math.floor(survivalMs / 1000);
+    const survivalTime = `${String(Math.floor(survivalSeconds / 60)).padStart(2, '0')}:${String(survivalSeconds % 60).padStart(2, '0')}`;
+    const result = this.add.text(WIDTH / 2, HEIGHT / 2 - 20, `${this.score} HOSTILES  •  SURVIVED ${survivalTime}`, {
       fontFamily: '"Share Tech Mono", monospace',
       fontSize: '17px',
       color: '#d8cdc0',
