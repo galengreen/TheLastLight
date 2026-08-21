@@ -528,9 +528,12 @@ export class ArenaScene extends Phaser.Scene {
       strokeThickness: 5,
     }).setDepth(30);
 
-    this.add.text(WIDTH - 25, 20, 'VITALS', { ...labelStyle, align: 'right' }).setOrigin(1, 0).setDepth(30);
-    this.healthBack = this.add.rectangle(WIDTH - 25, 42, 124, 10, 0x101411).setOrigin(1, 0.5).setDepth(30);
-    this.healthBar = this.add.rectangle(WIDTH - 27, 42, 120, 6, 0xd4d37b).setOrigin(1, 0.5).setDepth(31);
+    this.healthBack = this.add.rectangle(this.player.x, this.player.y - 31, 38, 8, 0x0a0b0a, 0.88)
+      .setStrokeStyle(1, 0x4d3029, 0.9)
+      .setDepth(20);
+    this.healthBar = this.add.rectangle(this.player.x - 17, this.player.y - 31, 34, 4, 0xd4d37b, 0.95)
+      .setOrigin(0, 0.5)
+      .setDepth(21);
     this.statusVignette = this.add.image(WIDTH / 2, HEIGHT / 2, 'status-vignette')
       .setDepth(24)
       .setTint(0xff642f)
@@ -853,6 +856,8 @@ export class ArenaScene extends Phaser.Scene {
       .setPosition(this.player.x + 2, this.player.y + 3)
       .setRotation(this.player.rotation);
     this.playerGlow.setPosition(this.player.x, this.player.y);
+    this.healthBack.setPosition(this.player.x, this.player.y - 31);
+    this.healthBar.setPosition(this.player.x - 17, this.player.y - 31);
     this.flares.update(time, aim);
     this.updateStatusEffects(time);
 
@@ -1386,7 +1391,7 @@ export class ArenaScene extends Phaser.Scene {
     this.lastHurt = this.time.now;
     this.health = Math.max(0, this.health - amount);
     this.audio.playTone(68, 0.2, 0.07, 'sawtooth');
-    this.healthBar.width = 120 * (this.health / 100);
+    this.healthBar.width = 34 * (this.health / 100);
     this.healthBar.setFillStyle(this.health <= 35 ? 0xd4513f : 0xd4d37b);
     this.player.setTintFill(0xffe6d3);
     this.time.delayedCall(90, () => this.player.clearTint());
@@ -1402,7 +1407,7 @@ export class ArenaScene extends Phaser.Scene {
     this.healthBar.setFillStyle(this.health <= 35 ? 0xd4513f : 0xd4d37b);
     this.tweens.add({
       targets: this.healthBar,
-      width: 120 * (this.health / 100),
+      width: 34 * (this.health / 100),
       duration: 380,
       ease: 'Quad.out',
     });
