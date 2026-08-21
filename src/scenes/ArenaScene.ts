@@ -109,6 +109,7 @@ export class ArenaScene extends Phaser.Scene {
     this.wasAdrenalineActive = false;
     this.announcementQueue = [];
     this.announcementActive = false;
+    window.dispatchEvent(new CustomEvent('last-light:run-start'));
     this.audio = new AudioSystem(this);
     this.monsterAudio = new MonsterAudioSystem(this);
 
@@ -1357,6 +1358,9 @@ export class ArenaScene extends Phaser.Scene {
 
   gameOver() {
     this.isGameOver = true;
+    window.dispatchEvent(new CustomEvent('last-light:game-over', {
+      detail: { score: this.score, survivalMs: this.time.now - this.startedAt },
+    }));
     this.announcementQueue = [];
     this.director.stop();
     this.player.setTint(0x8f4d44);

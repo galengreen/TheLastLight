@@ -3,12 +3,100 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#080b0a" />
+    <meta name="theme-color" content="#070807" />
+    <meta name="description" content="The Last Light — a pixel-art survival shooter." />
     <link rel="icon" href="data:," />
-    <title>Last Light</title>
+    <title>The Last Light</title>
   </head>
   <body>
-    <main id="game-shell" aria-label="Last Light top-down shooter">
+    <div id="mobile-notice" class="mobile-notice">
+      <strong>DESKTOP DEPLOYMENT REQUIRED</strong>
+      <p>The Last Light currently requires a keyboard and mouse.</p>
+    </div>
+
+    <main id="home" class="home">
+      <div class="home-backdrop" aria-hidden="true"></div>
+      <img class="home-hero" src="/menu/the_last_light_hero_1920x1080.png" alt="A soldier holds a floodlit outpost against the dead" />
+      <div class="home-shade" aria-hidden="true"></div>
+      <header class="home-title">
+        <img src="/menu/the_last_light_logo.png" alt="The Last Light" />
+        <span>THE LAST LIGHT</span>
+      </header>
+
+      <form id="deploy-form" class="home-panel" autocomplete="off">
+        <label class="callsign-label" for="callsign">SURVIVOR CALLSIGN</label>
+        <input id="callsign" name="callsign" maxlength="18" placeholder="ENTER CALLSIGN" autocomplete="off" spellcheck="false" required />
+        <button id="play-button" class="menu-button menu-button-primary" type="submit">
+          <span>DEPLOY</span>
+          <small>HOLD THE OUTPOST</small>
+        </button>
+        <div class="home-secondary-actions">
+          <button id="how-to-button" class="menu-button" type="button">HOW TO PLAY</button>
+          <button id="leaderboard-button" class="menu-button" type="button">LEADERBOARD</button>
+        </div>
+        <p id="home-notice" class="home-notice" aria-live="polite"></p>
+      </form>
+
+      <aside class="home-status" aria-label="Game status">
+        <div>
+          <span>LAST UPDATE</span>
+          <strong id="last-update">--</strong>
+        </div>
+        <div>
+          <span>OUTPOST DEPLOYMENTS</span>
+          <strong id="play-count">--</strong>
+        </div>
+      </aside>
+
+      <nav class="home-credits" aria-label="Project links and credits">
+        <button id="changelog-button" class="credit-link" type="button">CHANGE LOG</button>
+        <a class="credit-link" href="https://github.com/AlexanderHeffernan/TheLastLight" target="_blank" rel="noreferrer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.37-3.9-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.72 1.27 3.38.97.1-.75.4-1.27.74-1.56-2.57-.29-5.27-1.29-5.27-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.16 1.18A10.9 10.9 0 0 1 12 6.08c.98 0 1.95.13 2.87.39 2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.84 1.19 3.1 0 4.41-2.71 5.39-5.29 5.68.42.36.78 1.07.78 2.16v3.25c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z" /></svg>
+          OPEN SOURCE
+        </a>
+        <a class="contributor" href="https://github.com/AlexanderHeffernan" target="_blank" rel="noreferrer" aria-label="Alexander Heffernan — creator">
+          <img src="https://github.com/AlexanderHeffernan.png?size=92" alt="Alexander Heffernan" />
+          <span><strong>Alexander Heffernan</strong>Creator, developer, game designer</span>
+        </a>
+      </nav>
+    </main>
+
+    <section id="how-to-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="how-to-title">
+      <div class="modal-panel">
+        <button class="modal-close" type="button" data-close-modal aria-label="Close">×</button>
+        <p class="modal-kicker">FIELD MANUAL // 01</p>
+        <h2 id="how-to-title">HOW TO SURVIVE</h2>
+        <div class="how-to-grid">
+          <article><kbd>WASD</kbd><div><strong>KEEP MOVING</strong><p>Use WASD or the arrow keys. Standing still is a death sentence.</p></div></article>
+          <article><kbd>MOUSE</kbd><div><strong>AIM & FIRE</strong><p>Aim with the cursor and hold the left mouse button to fire.</p></div></article>
+          <article><kbd>F</kbd><div><strong>AERIAL FLARES</strong><p>The generator fabricates flares. Fire one overhead to reclaim the darkness.</p></div></article>
+          <article><kbd>E</kbd><div><strong>SUPPLY DROPS</strong><p>Approach a landed cache and press E to open it.</p></div></article>
+          <article><kbd>P / ESC</kbd><div><strong>PAUSE</strong><p>Pause the operation whenever you need a moment.</p></div></article>
+          <article><kbd>∞</kbd><div><strong>HOLD THE LINE</strong><p>The dead never stop. Eliminate as many as you can before the outpost falls.</p></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="leaderboard-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
+      <div class="modal-panel leaderboard-panel">
+        <button class="modal-close" type="button" data-close-modal aria-label="Close">×</button>
+        <p class="modal-kicker">SURVIVOR ARCHIVE // GLOBAL</p>
+        <h2 id="leaderboard-title">LAST STANDS</h2>
+        <div class="leaderboard-head"><span>#</span><span>CALLSIGN</span><span>ELIMINATIONS</span><span>SURVIVED</span></div>
+        <div id="leaderboard-rows" class="leaderboard-rows" aria-live="polite">RETRIEVING FIELD RECORDS...</div>
+      </div>
+    </section>
+
+    <section id="changelog-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
+      <div class="modal-panel">
+        <button class="modal-close" type="button" data-close-modal aria-label="Close">×</button>
+        <p class="modal-kicker">OPERATIONS LOG // RECENT</p>
+        <h2 id="changelog-title">CHANGE LOG</h2>
+        <div id="changelog-rows" class="changelog-rows" aria-live="polite">RETRIEVING TRANSMISSIONS...</div>
+      </div>
+    </section>
+
+    <main id="game-shell" class="game-shell hidden" aria-label="The Last Light top-down shooter">
       <div id="game"></div>
       <div class="scanlines" aria-hidden="true"></div>
       <div class="vignette" aria-hidden="true"></div>

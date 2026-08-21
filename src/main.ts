@@ -1,5 +1,26 @@
 import Phaser from 'phaser';
 import './style.css';
+import { recordPlay, submitScore } from './api/client';
 import { gameConfig } from './config/game';
+import { HomeScreen } from './ui/HomeScreen';
 
-new Phaser.Game(gameConfig);
+let game: Phaser.Game | undefined;
+let callsign = 'SURVIVOR';
+
+new HomeScreen({
+  onDeploy: (name) => {
+    callsign = name;
+    document.querySelector('#home')?.classList.add('hidden');
+    document.querySelector('#game-shell')?.classList.remove('hidden');
+    game ??= new Phaser.Game(gameConfig);
+  },
+});
+
+window.addEventListener('last-light:run-start', () => {
+  void recordPlay().catch(() => undefined);
+});
+
+window.addEventListener('last-light:game-over', (event) => {
+  const result = (event as CustomEvent<{ score: number; survivalMs: number }>).detail;
+  void submitScore(callsign, result.score, result.survivalMs).catch(() => undefined);
+});
