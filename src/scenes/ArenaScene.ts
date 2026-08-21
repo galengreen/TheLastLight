@@ -528,10 +528,10 @@ export class ArenaScene extends Phaser.Scene {
       strokeThickness: 5,
     }).setDepth(30);
 
-    this.healthBack = this.add.rectangle(this.player.x, this.player.y - 31, 38, 8, 0x0a0b0a, 0.88)
-      .setStrokeStyle(1, 0x4d3029, 0.9)
+    this.healthBack = this.add.rectangle(this.player.x, this.player.y - 36, 38, 6, 0x0a0b0a, 0.58)
+      .setStrokeStyle(1, 0x4d3029, 0.65)
       .setDepth(20);
-    this.healthBar = this.add.rectangle(this.player.x - 17, this.player.y - 31, 34, 4, 0xd4d37b, 0.95)
+    this.healthBar = this.add.rectangle(this.player.x - 17, this.player.y - 36, 34, 2, 0xd4d37b, 0.76)
       .setOrigin(0, 0.5)
       .setDepth(21);
     this.statusVignette = this.add.image(WIDTH / 2, HEIGHT / 2, 'status-vignette')
@@ -856,8 +856,8 @@ export class ArenaScene extends Phaser.Scene {
       .setPosition(this.player.x + 2, this.player.y + 3)
       .setRotation(this.player.rotation);
     this.playerGlow.setPosition(this.player.x, this.player.y);
-    this.healthBack.setPosition(this.player.x, this.player.y - 31);
-    this.healthBar.setPosition(this.player.x - 17, this.player.y - 31);
+    this.healthBack.setPosition(this.player.x, this.player.y - 36);
+    this.healthBar.setPosition(this.player.x - 17, this.player.y - 36);
     this.flares.update(time, aim);
     this.updateStatusEffects(time);
 
