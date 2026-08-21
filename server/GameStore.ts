@@ -50,18 +50,30 @@ export class GameStore {
 
   recordPlay(): number {
     this.data.playCount += 1;
-    this.queueSave();
+    void this.queueSave().catch(() => undefined);
     return this.data.playCount;
   }
 
-  submit(name: unknown, score: unknown, survivalMs: unknown): LeaderboardEntry | null {
+  async submit(
+    name: unknown,
+    score: unknown,
+    survivalMs: unknown,
+    submissionId?: unknown,
+  ): Promise<LeaderboardEntry | null> {
     const normalizedName = normalizeName(name);
     const normalizedScore = validInteger(score, 0, 100000);
-    const normalizedSurvival = validInteger(survivalMs, 1000, 24 * 60 * 60 * 1000);
-    if (!normalizedName || normalizedScore === null || normalizedSurvival === null) return null;
+    const normalizedSurvival = validDuration(survivalMs);
+    const entryId = submissionId === undefined ? randomUUID() : validSubmissionId(submissionId);
+    if (!normalizedName || normalizedScore === null || normalizedSurvival === null || !entryId) return null;
+
+    const existing = this.data.leaderboard.find((candidate) => candidate.id === entryId);
+    if (existing) {
+      await this.queueSave();
+      return existing;
+    }
 
     const entry: LeaderboardEntry = {
-      id: randomUUID(),
+      id: entryId,
       name: normalizedName,
       score: normalizedScore,
       survivalMs: normalizedSurvival,
@@ -70,39 +82,44 @@ export class GameStore {
     this.data.leaderboard.push(entry);
     this.data.leaderboard.sort(compareScores);
     this.data.leaderboard = this.data.leaderboard.slice(0, LEADERBOARD_LIMIT);
-    this.queueSave();
-    return entry;
+    await this.queueSave();
+    return this.data.leaderboard.find((candidate) => candidate.id === entry.id) ?? entry;
   }
 
   async flush(): Promise<void> {
     await this.writeQueue;
   }
 
-  private queueSave(): void {
+  private queueSave(): Promise<void> {
     const snapshot = `${JSON.stringify(this.data, null, 2)}\n`;
-    this.writeQueue = this.writeQueue
-      .catch(() => undefined)
-      .then(async () => {
-        await mkdir(dirname(this.path), { recursive: true });
-        const temporaryPath = `${this.path}.${process.pid}.tmp`;
-        await writeFile(temporaryPath, snapshot, 'utf8');
-        await rename(temporaryPath, this.path);
-      })
-      .catch((error: unknown) => {
-        console.error(`Could not persist game data: ${errorMessage(error)}`);
-      });
+    const operation = this.writeQueue.then(async () => {
+      await mkdir(dirname(this.path), { recursive: true });
+      const temporaryPath = `${this.path}.${process.pid}.tmp`;
+      await writeFile(temporaryPath, snapshot, 'utf8');
+      await rename(temporaryPath, this.path);
+    });
+    this.writeQueue = operation.catch((error: unknown) => {
+      console.error(`Could not persist game data: ${errorMessage(error)}`);
+    });
+    return operation;
   }
 }
 
 function normalizeName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const normalized = value.trim().replace(/\s+/g, ' ').replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 18);
-  return normalized.length >= 2 ? normalized : null;
+  const normalized = [...value.trim().replace(/\s+/g, ' ')].slice(0, 18).join('');
+  return [...normalized].length >= 2 ? normalized : null;
 }
 
 function validInteger(value: unknown, minimum: number, maximum: number): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value >= minimum && value <= maximum
     ? value
+    : null;
+}
+
+function validDuration(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 24 * 60 * 60 * 1000
+    ? Math.round(value)
     : null;
 }
 
@@ -112,13 +129,20 @@ function compareScores(left: LeaderboardEntry, right: LeaderboardEntry): number 
     || left.achievedAt - right.achievedAt;
 }
 
+function validSubmissionId(value: unknown): string | null {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
+}
+
 function isLeaderboardEntry(value: unknown): value is LeaderboardEntry {
   if (!value || typeof value !== 'object') return false;
   const entry = value as LeaderboardEntry;
   return typeof entry.id === 'string'
     && normalizeName(entry.name) === entry.name
     && validInteger(entry.score, 0, 100000) !== null
-    && validInteger(entry.survivalMs, 1000, 24 * 60 * 60 * 1000) !== null
+    && validDuration(entry.survivalMs) === entry.survivalMs
     && validInteger(entry.achievedAt, 0, Number.MAX_SAFE_INTEGER) !== null;
 }
 

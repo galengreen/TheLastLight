@@ -1,4 +1,5 @@
 import {
+  flushPendingScores,
   getChangelog,
   getLeaderboard,
   getStatus,
@@ -44,8 +45,8 @@ export class HomeScreen {
 
   private deploy(event: SubmitEvent): void {
     event.preventDefault();
-    const callsign = this.callsign.value.trim().replace(/\s+/g, ' ').slice(0, 18);
-    if (callsign.length < 2) {
+    const callsign = [...this.callsign.value.trim().replace(/\s+/g, ' ')].slice(0, 18).join('');
+    if ([...callsign].length < 2) {
       this.notice.textContent = 'ENTER A CALLSIGN TO DEPLOY';
       this.callsign.focus();
       return;
@@ -70,6 +71,7 @@ export class HomeScreen {
     const rows = element('leaderboard-rows');
     rows.textContent = 'RETRIEVING FIELD RECORDS...';
     try {
+      await flushPendingScores();
       const entries = await getLeaderboard();
       rows.replaceChildren(...(entries.length ? entries.map(leaderboardRow) : [messageRow('NO SURVIVORS RECORDED YET')]));
     } catch {

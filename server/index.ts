@@ -30,9 +30,8 @@ const server = createServer(async (request, response) => {
       return json(response, { entries: gameStore.entries() });
     }
     if (request.method === 'POST' && url.pathname === '/api/leaderboard') {
-      if (!allow(request, 'scores', 10)) return json(response, { error: 'Too many requests' }, 429);
       const body = await readJson(request);
-      const entry = gameStore.submit(body.name, body.score, body.survivalMs);
+      const entry = await gameStore.submit(body.name, body.score, body.survivalMs, body.submissionId);
       return entry ? json(response, { ok: true, entry }) : json(response, { error: 'Invalid score' }, 400);
     }
     if (request.method === 'GET' && url.pathname === '/api/changelog') {

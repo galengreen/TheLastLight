@@ -18,6 +18,16 @@ export interface ChangelogEntry {
   date: string | null;
 }
 
+interface PendingScore {
+  submissionId: string;
+  name: string;
+  score: number;
+  survivalMs: number;
+}
+
+const PENDING_SCORES_KEY = 'the-last-light-pending-scores';
+let flushPromise: Promise<void> | undefined;
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...options,
@@ -40,11 +50,87 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   return response.entries;
 }
 
-export function submitScore(name: string, score: number, survivalMs: number): Promise<{ ok: true }> {
+export function submitScore(
+  name: string,
+  score: number,
+  survivalMs: number,
+  submissionId: string = crypto.randomUUID(),
+): Promise<{ ok: true }> {
   return request('/api/leaderboard', {
     method: 'POST',
-    body: JSON.stringify({ name, score, survivalMs }),
+    body: JSON.stringify({ name, score, survivalMs, submissionId }),
+    keepalive: true,
   });
+}
+
+export function queueScore(name: string, score: number, survivalMs: number): Promise<void> {
+  const pending = { submissionId: crypto.randomUUID(), name, score, survivalMs: Math.round(survivalMs) };
+  try {
+    const scores = readPendingScores();
+    scores.push(pending);
+    writePendingScores(scores);
+  } catch {
+    return submitScore(name, score, survivalMs, pending.submissionId).then(() => undefined);
+  }
+  return flushPendingScores();
+}
+
+export function flushPendingScores(): Promise<void> {
+  flushPromise ??= flushScores().finally(() => {
+    flushPromise = undefined;
+  });
+  return flushPromise;
+}
+
+async function flushScores(): Promise<void> {
+  while (true) {
+    const score = readPendingScores()[0];
+    if (!score) return;
+    await submitScore(score.name, score.score, score.survivalMs, score.submissionId);
+    const scores = readPendingScores();
+    const submitted = scores.findIndex((entry) => sameScore(entry, score));
+    if (submitted >= 0) {
+      scores.splice(submitted, 1);
+      writePendingScores(scores);
+    }
+  }
+}
+
+function readPendingScores(): PendingScore[] {
+  const stored = localStorage.getItem(PENDING_SCORES_KEY);
+  if (!stored) return [];
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed.filter(isPendingScore) : [];
+  } catch {
+    localStorage.removeItem(PENDING_SCORES_KEY);
+    return [];
+  }
+}
+
+function writePendingScores(scores: PendingScore[]): void {
+  if (scores.length) localStorage.setItem(PENDING_SCORES_KEY, JSON.stringify(scores));
+  else localStorage.removeItem(PENDING_SCORES_KEY);
+}
+
+function isPendingScore(value: unknown): value is PendingScore {
+  if (!value || typeof value !== 'object') return false;
+  const score = value as PendingScore;
+  return typeof score.submissionId === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(score.submissionId)
+    && typeof score.name === 'string'
+    && typeof score.score === 'number'
+    && Number.isInteger(score.score)
+    && score.score >= 0
+    && score.score <= 100000
+    && typeof score.survivalMs === 'number'
+    && Number.isInteger(score.survivalMs)
+    && score.survivalMs >= 0
+    && score.survivalMs <= 24 * 60 * 60 * 1000;
+}
+
+function sameScore(left: PendingScore, right: PendingScore): boolean {
+  return left.submissionId === right.submissionId;
 }
 
 export function getChangelog(): Promise<{ repository: string; entries: ChangelogEntry[] }> {

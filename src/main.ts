@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import './style.css';
-import { recordPlay, submitScore } from './api/client';
+import { flushPendingScores, queueScore, recordPlay } from './api/client';
 import { gameConfig } from './config/game';
 import { HomeScreen } from './ui/HomeScreen';
 
@@ -22,8 +22,11 @@ window.addEventListener('last-light:run-start', () => {
 
 window.addEventListener('last-light:game-over', (event) => {
   const result = (event as CustomEvent<{ score: number; survivalMs: number }>).detail;
-  void submitScore(callsign, result.score, result.survivalMs).catch(() => undefined);
+  void queueScore(callsign, result.score, result.survivalMs).catch(() => undefined);
 });
+
+window.addEventListener('online', () => void flushPendingScores().catch(() => undefined));
+void flushPendingScores().catch(() => undefined);
 
 window.addEventListener('last-light:return-menu', () => {
   // Let Phaser finish dispatching the button event before tearing down its input system.
