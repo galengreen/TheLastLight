@@ -66,16 +66,18 @@ export function submitScore(
   });
 }
 
-export function queueScore(name: string, score: number, survivalMs: number, threat: number): Promise<void> {
+export async function queueScore(name: string, score: number, survivalMs: number, threat: number): Promise<number | null> {
   const pending = { submissionId: crypto.randomUUID(), name, score, survivalMs: Math.round(survivalMs), threat };
   try {
     const scores = readPendingScores();
     scores.push(pending);
     writePendingScores(scores);
   } catch {
-    return submitScore(name, score, survivalMs, threat, pending.submissionId).then(() => undefined);
+    await submitScore(name, score, survivalMs, threat, pending.submissionId);
+    return leaderboardRank(pending.submissionId);
   }
-  return flushPendingScores();
+  await flushPendingScores();
+  return leaderboardRank(pending.submissionId);
 }
 
 export function flushPendingScores(): Promise<void> {
@@ -136,6 +138,12 @@ function isPendingScore(value: unknown): value is PendingScore {
 
 function sameScore(left: PendingScore, right: PendingScore): boolean {
   return left.submissionId === right.submissionId;
+}
+
+async function leaderboardRank(submissionId: string): Promise<number | null> {
+  const entries = await getLeaderboard();
+  const index = entries.findIndex((entry) => entry.id === submissionId);
+  return index < 0 ? null : index + 1;
 }
 
 export function getChangelog(): Promise<{ repository: string; entries: ChangelogEntry[] }> {

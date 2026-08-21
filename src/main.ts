@@ -21,8 +21,19 @@ window.addEventListener('last-light:run-start', () => {
 });
 
 window.addEventListener('last-light:game-over', (event) => {
-  const result = (event as CustomEvent<{ score: number; survivalMs: number; threat: number }>).detail;
-  void queueScore(callsign, result.score, result.survivalMs, result.threat).catch(() => undefined);
+  const result = (event as CustomEvent<{
+    score: number;
+    survivalMs: number;
+    threat: number;
+    runId: string;
+  }>).detail;
+  void queueScore(callsign, result.score, result.survivalMs, result.threat)
+    .then((rank) => window.dispatchEvent(new CustomEvent('last-light:leaderboard-result', {
+      detail: { runId: result.runId, rank, available: true },
+    })))
+    .catch(() => window.dispatchEvent(new CustomEvent('last-light:leaderboard-result', {
+      detail: { runId: result.runId, rank: null, available: false },
+    })));
 });
 
 window.addEventListener('online', () => void flushPendingScores().catch(() => undefined));

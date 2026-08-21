@@ -93,6 +93,7 @@ export class ArenaScene extends Phaser.Scene {
   private score = 0;
   private health = 100;
   private startedAt = 0;
+  private runId = '';
   private lastShot = 0;
   private lastHurt = -1000;
   private playerKnockbackUntil = 0;
@@ -142,7 +143,26 @@ export class ArenaScene extends Phaser.Scene {
   private generatorMarker!: Phaser.GameObjects.Text;
   private statusVignette!: Phaser.GameObjects.Image;
   private adrenalineText!: Phaser.GameObjects.Text;
+  private leaderboardResultText?: Phaser.GameObjects.Text;
   private wasAdrenalineActive = false;
+
+  private readonly handleLeaderboardResult = (event: Event): void => {
+    const { runId, rank, available } = (event as CustomEvent<{
+      runId: string;
+      rank: number | null;
+      available: boolean;
+    }>).detail;
+    if (runId !== this.runId || !this.isGameOver || !this.leaderboardResultText?.active) return;
+    if (!available) {
+      this.leaderboardResultText.setText('ARCHIVE OFFLINE  //  SCORE QUEUED').setColor('#a99c91');
+    } else if (rank === null) {
+      this.leaderboardResultText.setText('GLOBAL LEADERBOARD  //  OUTSIDE TOP 10').setColor('#a99c91');
+    } else {
+      this.leaderboardResultText
+        .setText(`GLOBAL LEADERBOARD SECURED  //  RANK #${String(rank).padStart(2, '0')}`)
+        .setColor('#f06a51');
+    }
+  };
 
   constructor() {
     super('arena');
@@ -161,6 +181,7 @@ export class ArenaScene extends Phaser.Scene {
     this.score = 0;
     this.health = 100;
     this.startedAt = this.time.now;
+    this.runId = crypto.randomUUID();
     this.lastShot = 0;
     this.lastHurt = -1000;
     this.playerKnockbackUntil = 0;
@@ -177,6 +198,12 @@ export class ArenaScene extends Phaser.Scene {
     this.barrelDropEvent = undefined;
     this.barrelSlots = [];
     this.bossHazards = [];
+    this.leaderboardResultText = undefined;
+    window.addEventListener('last-light:leaderboard-result', this.handleLeaderboardResult);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('last-light:leaderboard-result', this.handleLeaderboardResult);
+      this.leaderboardResultText = undefined;
+    });
     window.dispatchEvent(new CustomEvent('last-light:run-start'));
     this.audio = new AudioSystem(this);
     this.monsterAudio = new MonsterAudioSystem(this);
@@ -963,7 +990,12 @@ export class ArenaScene extends Phaser.Scene {
   private returnToMenu(): void {
     if (!this.isGameOver) {
       window.dispatchEvent(new CustomEvent('last-light:game-over', {
-        detail: { score: this.score, survivalMs: this.time.now - this.startedAt, threat: this.director.wave },
+        detail: {
+          score: this.score,
+          survivalMs: this.time.now - this.startedAt,
+          threat: this.director.wave,
+          runId: this.runId,
+        },
       }));
     }
     window.dispatchEvent(new CustomEvent('last-light:return-menu'));
@@ -3036,7 +3068,7 @@ export class ArenaScene extends Phaser.Scene {
     this.isGameOver = true;
     const survivalMs = this.time.now - this.startedAt;
     window.dispatchEvent(new CustomEvent('last-light:game-over', {
-      detail: { score: this.score, survivalMs, threat: this.director.wave },
+      detail: { score: this.score, survivalMs, threat: this.director.wave, runId: this.runId },
     }));
     this.announcementQueue = [];
     this.director.stop();
@@ -3070,10 +3102,20 @@ export class ArenaScene extends Phaser.Scene {
       fontSize: '17px',
       color: '#d8cdc0',
     }).setOrigin(0.5);
-    const rule = this.add.rectangle(WIDTH / 2, HEIGHT / 2 + 10, 390, 2, 0x7d2b24, 0.85);
+    this.leaderboardResultText = this.add.text(
+      WIDTH / 2,
+      HEIGHT / 2 + 12,
+      'CHECKING GLOBAL ARCHIVE...',
+      {
+        fontFamily: '"Share Tech Mono", monospace',
+        fontSize: '12px',
+        color: '#a99c91',
+      },
+    ).setOrigin(0.5);
+    const rule = this.add.rectangle(WIDTH / 2, HEIGHT / 2 + 34, 390, 2, 0x7d2b24, 0.85);
     const redeployButton = this.makeOverlayButton(
       WIDTH / 2 - 106,
-      HEIGHT / 2 + 60,
+      HEIGHT / 2 + 77,
       196,
       'REDEPLOY',
       true,
@@ -3081,13 +3123,13 @@ export class ArenaScene extends Phaser.Scene {
     );
     const menuButton = this.makeOverlayButton(
       WIDTH / 2 + 106,
-      HEIGHT / 2 + 60,
+      HEIGHT / 2 + 77,
       196,
       'MAIN MENU',
       false,
       () => this.audio.fadeOutMusic(() => this.returnToMenu()),
     );
-    const footer = this.add.text(WIDTH / 2, HEIGHT / 2 + 127, 'THE LAST LIGHT // FIELD COMMAND', {
+    const footer = this.add.text(WIDTH / 2, HEIGHT / 2 + 133, 'THE LAST LIGHT // FIELD COMMAND', {
       fontFamily: '"Share Tech Mono", monospace',
       fontSize: '11px',
       color: '#81766f',
@@ -3100,6 +3142,7 @@ export class ArenaScene extends Phaser.Scene {
       status,
       title,
       result,
+      this.leaderboardResultText,
       rule,
       ...redeployButton,
       ...menuButton,
