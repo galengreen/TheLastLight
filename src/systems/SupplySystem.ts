@@ -82,11 +82,9 @@ export class SupplySystem {
       return;
     }
 
-    const canOpen = this.state === 'ready'
-      && !!this.cache
-      && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.cache.x, this.cache.y) <= 58;
+    const canOpen = this.canInteract();
     this.prompt.setVisible(canOpen);
-    if (canOpen && Phaser.Input.Keyboard.JustDown(this.interactKey)) this.openDrop();
+    if (canOpen && Phaser.Input.Keyboard.JustDown(this.interactKey)) this.interact();
 
     if (time < this.adrenalineUntil) {
       this.player.setTint(0xffd18a);
@@ -101,6 +99,17 @@ export class SupplySystem {
 
   fireInterval(time: number): number {
     return time < this.adrenalineUntil ? 78 : 105;
+  }
+
+  interact(): void {
+    if (this.canInteract()) this.openDrop();
+  }
+
+  canInteract(): boolean {
+    return !this.hooks.isGameOver()
+      && this.state === 'ready'
+      && !!this.cache
+      && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.cache.x, this.cache.y) <= 58;
   }
 
   adrenalineRemaining(time: number): number {
