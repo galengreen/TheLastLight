@@ -1,18 +1,27 @@
 {
-  "name": "last-light",
+  "name": "the-last-light",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && vite build",
-    "preview": "vite preview"
+    "build:changelog": "node scripts/buildChangelog.mjs",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "build": "npm run typecheck && npm run build:changelog && npm run build:client && npm run build:server",
+    "preview": "vite preview",
+    "start": "node dist/server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@types/node": "^20.19.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.3"
   }
