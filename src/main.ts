@@ -7,7 +7,7 @@ import { HomeScreen } from './ui/HomeScreen';
 let game: Phaser.Game | undefined;
 let callsign = 'SURVIVOR';
 
-new HomeScreen({
+const homeScreen = new HomeScreen({
   onDeploy: (name) => {
     callsign = name;
     document.querySelector('#home')?.classList.add('hidden');
@@ -23,4 +23,15 @@ window.addEventListener('last-light:run-start', () => {
 window.addEventListener('last-light:game-over', (event) => {
   const result = (event as CustomEvent<{ score: number; survivalMs: number }>).detail;
   void submitScore(callsign, result.score, result.survivalMs).catch(() => undefined);
+});
+
+window.addEventListener('last-light:return-menu', () => {
+  // Let Phaser finish dispatching the button event before tearing down its input system.
+  window.setTimeout(() => {
+    game?.destroy(true);
+    game = undefined;
+    document.querySelector('#game-shell')?.classList.add('hidden');
+    document.querySelector('#home')?.classList.remove('hidden');
+    homeScreen.show();
+  }, 0);
 });

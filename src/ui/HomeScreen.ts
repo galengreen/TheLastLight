@@ -36,6 +36,12 @@ export class HomeScreen {
     void this.refreshStatus();
   }
 
+  show(): void {
+    this.notice.textContent = '';
+    document.querySelectorAll('.modal').forEach((modal) => modal.classList.add('hidden'));
+    void this.refreshStatus();
+  }
+
   private deploy(event: SubmitEvent): void {
     event.preventDefault();
     const callsign = this.callsign.value.trim().replace(/\s+/g, ' ').slice(0, 18);

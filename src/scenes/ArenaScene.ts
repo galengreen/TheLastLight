@@ -23,7 +23,6 @@ interface Controls {
   downAlt: Phaser.Input.Keyboard.Key;
   leftAlt: Phaser.Input.Keyboard.Key;
   rightAlt: Phaser.Input.Keyboard.Key;
-  restart: Phaser.Input.Keyboard.Key;
   pause: Phaser.Input.Keyboard.Key;
   pauseAlt: Phaser.Input.Keyboard.Key;
   debug?: Phaser.Input.Keyboard.Key;
@@ -573,46 +572,95 @@ export class ArenaScene extends Phaser.Scene {
       }).setOrigin(1, 1).setDepth(70).setVisible(false);
     }
 
-    const pauseShade = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x050807, 0.82).setInteractive();
-    const pausePanel = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 470, 270, 0x101611, 0.96)
-      .setStrokeStyle(2, 0x80765d, 0.85);
-    const pauseInner = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 454, 254)
-      .setStrokeStyle(1, 0x373d32, 0.9);
-    const pauseRule = this.add.rectangle(WIDTH / 2, HEIGHT / 2 - 42, 350, 1, 0x80765d, 0.7);
-    const pauseStatus = this.add.text(WIDTH / 2, HEIGHT / 2 - 103, 'OUTPOST CONTROL // SYSTEM HALTED', {
+    const pauseShade = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x050303, 0.88).setInteractive();
+    const pausePanel = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 500, 390, 0x0c0d0c, 0.97)
+      .setStrokeStyle(3, 0x8d2f27, 0.95);
+    const pauseInner = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 484, 374)
+      .setStrokeStyle(1, 0x4c211d, 0.95);
+    const pauseAccent = this.add.rectangle(WIDTH / 2, HEIGHT / 2 - 187, 484, 5, 0xc44636, 0.95);
+    const pauseRule = this.add.rectangle(WIDTH / 2, HEIGHT / 2 - 92, 390, 2, 0x7d2b24, 0.85);
+    const pauseStatus = this.add.text(WIDTH / 2, HEIGHT / 2 - 162, 'FIELD OPERATIONS // SUSPENDED', {
       ...labelStyle,
       fontSize: '11px',
-      color: '#857f6e',
+      color: '#d04d3d',
     }).setOrigin(0.5);
-    const pauseTitle = this.add.text(WIDTH / 2, HEIGHT / 2 - 82, 'PAUSED', {
+    const pauseTitle = this.add.text(WIDTH / 2, HEIGHT / 2 - 128, 'PAUSED', {
       fontFamily: '"Changa One", sans-serif',
       fontSize: '52px',
-      color: '#e6d8b4',
-      stroke: '#080b09',
-      strokeThickness: 6,
+      color: '#e8dfcf',
+      stroke: '#4f1714',
+      strokeThickness: 7,
     }).setOrigin(0.5);
-    const pauseControls = this.add.text(WIDTH / 2, HEIGHT / 2 + 7,
+    const pauseControls = this.add.text(WIDTH / 2, HEIGHT / 2 - 31,
       'MOVE       WASD / ARROWS\nAIM        MOUSE\nFIRE       LEFT MOUSE\nFLARE      F\nINTERACT   E', {
         ...labelStyle,
         fontSize: '15px',
-        color: '#bdb79f',
-        lineSpacing: 9,
+        color: '#d4c9b8',
+        lineSpacing: 7,
       }).setOrigin(0.5);
-    const pauseResume = this.add.text(WIDTH / 2, HEIGHT / 2 + 100, 'PRESS  P  OR  ESC  TO RESUME', {
+    const pauseResumeButton = this.makeOverlayButton(
+      WIDTH / 2 - 106,
+      HEIGHT / 2 + 93,
+      196,
+      'RESUME',
+      true,
+      () => this.togglePause(),
+    );
+    const pauseMenuButton = this.makeOverlayButton(
+      WIDTH / 2 + 106,
+      HEIGHT / 2 + 93,
+      196,
+      'MAIN MENU',
+      false,
+      () => this.returnToMenu(),
+    );
+    const pauseShortcut = this.add.text(WIDTH / 2, HEIGHT / 2 + 160, 'P / ESC  RESUME FIELD OPERATIONS', {
       ...labelStyle,
-      fontSize: '14px',
-      color: '#e4c97f',
+      fontSize: '11px',
+      color: '#81766f',
     }).setOrigin(0.5);
     this.pauseMenu = this.add.container(0, 0, [
       pauseShade,
       pausePanel,
       pauseInner,
+      pauseAccent,
       pauseRule,
       pauseStatus,
       pauseTitle,
       pauseControls,
-      pauseResume,
+      ...pauseResumeButton,
+      ...pauseMenuButton,
+      pauseShortcut,
     ]).setDepth(60).setVisible(false);
+  }
+
+  private makeOverlayButton(
+    x: number,
+    y: number,
+    width: number,
+    text: string,
+    primary: boolean,
+    action: () => void,
+  ): Phaser.GameObjects.GameObject[] {
+    const restingFill = primary ? 0x9d3027 : 0x151413;
+    const hoverFill = primary ? 0xc44636 : 0x2a1a18;
+    const button = this.add.rectangle(x, y, width, 44, restingFill, 1)
+      .setStrokeStyle(2, primary ? 0xe26954 : 0x71312a, 1)
+      .setInteractive({ useHandCursor: true });
+    const label = this.add.text(x, y, text, {
+      fontFamily: '"Share Tech Mono", monospace',
+      fontSize: '16px',
+      color: primary ? '#fff0dc' : '#d8cdc0',
+    }).setOrigin(0.5);
+
+    button.on('pointerover', () => button.setFillStyle(hoverFill));
+    button.on('pointerout', () => button.setFillStyle(restingFill));
+    button.on('pointerup', action);
+    return [button, label];
+  }
+
+  private returnToMenu(): void {
+    window.dispatchEvent(new CustomEvent('last-light:return-menu'));
   }
 
   bindControls() {
@@ -625,7 +673,6 @@ export class ArenaScene extends Phaser.Scene {
       downAlt: Phaser.Input.Keyboard.KeyCodes.DOWN,
       leftAlt: Phaser.Input.Keyboard.KeyCodes.LEFT,
       rightAlt: Phaser.Input.Keyboard.KeyCodes.RIGHT,
-      restart: Phaser.Input.Keyboard.KeyCodes.R,
       pause: Phaser.Input.Keyboard.KeyCodes.P,
       pauseAlt: Phaser.Input.Keyboard.KeyCodes.ESC,
       ...(import.meta.env.DEV ? { debug: Phaser.Input.Keyboard.KeyCodes.F2 } : {}),
@@ -633,7 +680,6 @@ export class ArenaScene extends Phaser.Scene {
     this.input.mouse!.disableContextMenu();
     this.input.on('pointerdown', () => {
       if (this.sound.locked) this.sound.unlock?.();
-      if (this.isGameOver) this.scene.restart();
     });
   }
 
@@ -776,7 +822,6 @@ export class ArenaScene extends Phaser.Scene {
 
     if (this.isGameOver) {
       this.player.setVelocity(0);
-      if (Phaser.Input.Keyboard.JustDown(this.keys.restart)) this.scene.restart();
       return;
     }
 
@@ -1367,21 +1412,65 @@ export class ArenaScene extends Phaser.Scene {
     this.cameras.main.shake(380, 0.015);
     this.cameras.main.zoomTo(1.045, 450, 'Sine.easeOut');
 
-    const shade = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x070908, 0.76).setDepth(50).setAlpha(0);
-    const title = this.add.text(WIDTH / 2, HEIGHT / 2 - 34, 'OVERRUN', {
+    const shade = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x050202, 0.88).setInteractive();
+    const panel = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 510, 324, 0x0c0b0b, 0.97)
+      .setStrokeStyle(3, 0x962f27, 1);
+    const inner = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 494, 308)
+      .setStrokeStyle(1, 0x4c211d, 1);
+    const accent = this.add.rectangle(WIDTH / 2, HEIGHT / 2 - 154, 494, 5, 0xc44636, 1);
+    const status = this.add.text(WIDTH / 2, HEIGHT / 2 - 126, 'OUTPOST LOST // SIGNAL TERMINATED', {
+      fontFamily: '"Share Tech Mono", monospace',
+      fontSize: '11px',
+      color: '#d04d3d',
+    }).setOrigin(0.5);
+    const title = this.add.text(WIDTH / 2, HEIGHT / 2 - 82, 'OVERRUN', {
       fontFamily: '"Changa One", sans-serif',
       fontSize: '62px',
-      color: '#d7c9a6',
-      stroke: '#120d0c',
+      color: '#d85242',
+      stroke: '#3b100e',
       strokeThickness: 8,
-    }).setOrigin(0.5).setDepth(51).setScale(1.5).setAlpha(0);
-    const result = this.add.text(WIDTH / 2, HEIGHT / 2 + 34, `${this.score} ELIMINATIONS  •  CLICK OR PRESS R TO REDEPLOY`, {
+    }).setOrigin(0.5).setScale(1.5);
+    const result = this.add.text(WIDTH / 2, HEIGHT / 2 - 20, `${this.score}  HOSTILES ELIMINATED`, {
       fontFamily: '"Share Tech Mono", monospace',
       fontSize: '17px',
-      color: '#b9b49f',
-    }).setOrigin(0.5).setDepth(51).setAlpha(0);
-    this.tweens.add({ targets: shade, alpha: 1, duration: 400 });
-    this.tweens.add({ targets: title, alpha: 1, scale: 1, duration: 430, ease: 'Back.out' });
-    this.tweens.add({ targets: result, alpha: 1, delay: 280, duration: 300 });
+      color: '#d8cdc0',
+    }).setOrigin(0.5);
+    const rule = this.add.rectangle(WIDTH / 2, HEIGHT / 2 + 10, 390, 2, 0x7d2b24, 0.85);
+    const redeployButton = this.makeOverlayButton(
+      WIDTH / 2 - 106,
+      HEIGHT / 2 + 60,
+      196,
+      'REDEPLOY',
+      true,
+      () => this.scene.restart(),
+    );
+    const menuButton = this.makeOverlayButton(
+      WIDTH / 2 + 106,
+      HEIGHT / 2 + 60,
+      196,
+      'MAIN MENU',
+      false,
+      () => this.returnToMenu(),
+    );
+    const footer = this.add.text(WIDTH / 2, HEIGHT / 2 + 127, 'THE LAST LIGHT // FIELD COMMAND', {
+      fontFamily: '"Share Tech Mono", monospace',
+      fontSize: '11px',
+      color: '#81766f',
+    }).setOrigin(0.5);
+    const overlay = this.add.container(0, 0, [
+      shade,
+      panel,
+      inner,
+      accent,
+      status,
+      title,
+      result,
+      rule,
+      ...redeployButton,
+      ...menuButton,
+      footer,
+    ]).setDepth(50).setAlpha(0);
+    this.tweens.add({ targets: overlay, alpha: 1, duration: 400 });
+    this.tweens.add({ targets: title, scale: 1, duration: 430, ease: 'Back.out' });
   }
 }
