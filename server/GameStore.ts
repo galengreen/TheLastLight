@@ -16,6 +16,7 @@ interface GameData {
 }
 
 const EMPTY_DATA: GameData = { playCount: 0, leaderboard: [] };
+const LEADERBOARD_LIMIT = 10;
 
 export class GameStore {
   private data: GameData = structuredClone(EMPTY_DATA);
@@ -29,7 +30,7 @@ export class GameStore {
       this.data = {
         playCount: validInteger(parsed.playCount, 0, Number.MAX_SAFE_INTEGER) ?? 0,
         leaderboard: Array.isArray(parsed.leaderboard)
-          ? parsed.leaderboard.filter(isLeaderboardEntry).sort(compareScores).slice(0, 20)
+          ? parsed.leaderboard.filter(isLeaderboardEntry).sort(compareScores).slice(0, LEADERBOARD_LIMIT)
           : [],
       };
     } catch (error) {
@@ -68,7 +69,7 @@ export class GameStore {
     };
     this.data.leaderboard.push(entry);
     this.data.leaderboard.sort(compareScores);
-    this.data.leaderboard = this.data.leaderboard.slice(0, 20);
+    this.data.leaderboard = this.data.leaderboard.slice(0, LEADERBOARD_LIMIT);
     this.queueSave();
     return entry;
   }
