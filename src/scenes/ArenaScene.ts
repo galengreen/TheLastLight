@@ -531,8 +531,7 @@ export class ArenaScene extends Phaser.Scene {
     this.healthBack = this.add.rectangle(this.player.x, this.player.y - 36, 38, 6, 0x0a0b0a, 0.58)
       .setStrokeStyle(1, 0x4d3029, 0.65)
       .setDepth(20);
-    this.healthBar = this.add.rectangle(this.player.x - 17, this.player.y - 36, 34, 2, 0xd4d37b, 0.76)
-      .setOrigin(0, 0.5)
+    this.healthBar = this.add.rectangle(this.player.x, this.player.y - 36, 34, 2, 0xd4d37b, 0.76)
       .setDepth(21);
     this.statusVignette = this.add.image(WIDTH / 2, HEIGHT / 2, 'status-vignette')
       .setDepth(24)
@@ -856,8 +855,16 @@ export class ArenaScene extends Phaser.Scene {
       .setPosition(this.player.x + 2, this.player.y + 3)
       .setRotation(this.player.rotation);
     this.playerGlow.setPosition(this.player.x, this.player.y);
-    this.healthBack.setPosition(this.player.x, this.player.y - 36);
-    this.healthBar.setPosition(this.player.x - 17, this.player.y - 36);
+    const healthBarX = this.player.x - Math.cos(aim) * 36;
+    const healthBarY = this.player.y - Math.sin(aim) * 36;
+    this.healthBack.setPosition(healthBarX, healthBarY).setRotation(this.player.rotation);
+    const healthFillOffset = (this.healthBar.width - 34) / 2;
+    this.healthBar
+      .setPosition(
+        healthBarX + Math.cos(this.player.rotation) * healthFillOffset,
+        healthBarY + Math.sin(this.player.rotation) * healthFillOffset,
+      )
+      .setRotation(this.player.rotation);
     this.flares.update(time, aim);
     this.updateStatusEffects(time);
 
