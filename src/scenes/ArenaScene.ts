@@ -660,6 +660,11 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   private returnToMenu(): void {
+    if (!this.isGameOver) {
+      window.dispatchEvent(new CustomEvent('last-light:game-over', {
+        detail: { score: this.score, survivalMs: this.time.now - this.startedAt },
+      }));
+    }
     window.dispatchEvent(new CustomEvent('last-light:return-menu'));
   }
 
