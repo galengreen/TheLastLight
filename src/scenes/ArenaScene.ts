@@ -767,14 +767,14 @@ export class ArenaScene extends Phaser.Scene {
     this.announcementActive = true;
     const [title, subtitle] = message;
     this.audio.playAlert();
-    const titleText = this.add.text(WIDTH / 2, HEIGHT / 2 - 20, title, {
+    const titleText = this.add.text(WIDTH / 2, 57, title, {
       fontFamily: '"Changa One", sans-serif',
-      fontSize: '38px',
+      fontSize: '34px',
       color: '#e05d4b',
       stroke: '#130e0b',
-      strokeThickness: 7,
+      strokeThickness: 6,
     }).setOrigin(0.5).setDepth(45).setAlpha(0).setScale(1.2);
-    const subtitleText = this.add.text(WIDTH / 2, HEIGHT / 2 + 20, subtitle, {
+    const subtitleText = this.add.text(WIDTH / 2, 88, subtitle, {
       fontFamily: '"Share Tech Mono", monospace',
       fontSize: '13px',
       color: '#d4b3a9',
