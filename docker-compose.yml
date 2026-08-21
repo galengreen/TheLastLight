@@ -1,0 +1,19 @@
+services:
+  the-last-light:
+    image: ${THE_LAST_LIGHT_IMAGE:-ghcr.io/alexanderheffernan/thelastlight:latest}
+    container_name: the-last-light
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      DATA_DIR: "/data"
+      CHANGELOG_REPOSITORY: "AlexanderHeffernan/TheLastLight"
+    ports:
+      - "127.0.0.1:${HOST_PORT:-3011}:3000"
+    volumes:
+      - the-last-light-data:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+volumes:
+  the-last-light-data:
+    name: the-last-light-data
