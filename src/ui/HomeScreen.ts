@@ -6,11 +6,17 @@ import {
   type ChangelogEntry,
   type LeaderboardEntry,
 } from '../api/client';
+import {
+  hasTouchControls,
+  loadMobileControlScheme,
+  setMobileControlScheme,
+  type MobileControlScheme,
+} from '../config/controls';
 import lastNightAliveUrl from '../assets/audio/Last Night Alive.mp3';
 import lastNightAliveAlternateUrl from '../assets/audio/Last Night Alive-2.mp3';
 
 interface HomeScreenOptions {
-  onDeploy: (callsign: string) => void;
+  onDeploy: (callsign: string, mobileControlScheme: MobileControlScheme) => void;
 }
 
 const CALLSIGN_KEY = 'the-last-light-callsign';
@@ -20,13 +26,23 @@ const HOME_MUSIC_TRACKS = [lastNightAliveUrl, lastNightAliveAlternateUrl];
 export class HomeScreen {
   private readonly callsign = element<HTMLInputElement>('callsign');
   private readonly notice = element<HTMLElement>('home-notice');
+  private mobileControlScheme = loadMobileControlScheme();
   private menuMusic?: HTMLAudioElement;
   private menuFadeFrame?: number;
   private menuUnlockHandler?: () => void;
 
   constructor(private readonly options: HomeScreenOptions) {
+    document.documentElement.classList.toggle('touch-controls-available', hasTouchControls());
     this.callsign.value = localStorage.getItem(CALLSIGN_KEY) ?? '';
     element<HTMLFormElement>('deploy-form').addEventListener('submit', (event) => this.deploy(event));
+    document.querySelectorAll<HTMLInputElement>('input[name="mobile-control-scheme"]').forEach((input) => {
+      input.checked = input.value === this.mobileControlScheme;
+      input.addEventListener('change', () => {
+        if (input.checked && (input.value === 'drag-aim' || input.value === 'twin-stick')) {
+          this.mobileControlScheme = input.value;
+        }
+      });
+    });
     element('how-to-button').addEventListener('click', () => this.openModal('how-to-modal'));
     element('leaderboard-button').addEventListener('click', () => void this.openLeaderboard());
     element('changelog-button').addEventListener('click', () => void this.openChangelog());
@@ -61,8 +77,9 @@ export class HomeScreen {
       return;
     }
     localStorage.setItem(CALLSIGN_KEY, callsign);
+    setMobileControlScheme(this.mobileControlScheme);
     this.fadeOutMenuMusic();
-    this.options.onDeploy(callsign);
+    this.options.onDeploy(callsign, this.mobileControlScheme);
   }
 
   private startMenuMusic(): void {
