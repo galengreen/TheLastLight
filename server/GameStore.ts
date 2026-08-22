@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { validatePlayerName } from '../src/shared/nameValidator.js';
 
 export interface LeaderboardEntry {
   id: string;
@@ -66,12 +67,12 @@ export class GameStore {
     threat: unknown,
     submissionId?: unknown,
   ): Promise<LeaderboardEntry | null> {
-    const normalizedName = normalizeName(name);
+    const nameResult = validatePlayerName(name);
     const normalizedScore = validInteger(score, 0, 100000);
     const normalizedSurvival = validDuration(survivalMs);
     const normalizedThreat = threat === undefined || threat === null ? null : validInteger(threat, 1, 10000);
     const entryId = submissionId === undefined ? randomUUID() : validSubmissionId(submissionId);
-    if (!normalizedName
+    if (!nameResult.ok
       || normalizedScore === null
       || normalizedSurvival === null
       || (threat !== undefined && threat !== null && normalizedThreat === null)
@@ -85,7 +86,7 @@ export class GameStore {
 
     const entry: LeaderboardEntry = {
       id: entryId,
-      name: normalizedName,
+      name: nameResult.name,
       score: normalizedScore,
       survivalMs: normalizedSurvival,
       threat: normalizedThreat,
@@ -117,12 +118,6 @@ export class GameStore {
   }
 }
 
-function normalizeName(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const normalized = [...value.trim().replace(/\s+/g, ' ')].slice(0, 18).join('');
-  return [...normalized].length >= 2 ? normalized : null;
-}
-
 function validInteger(value: unknown, minimum: number, maximum: number): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value >= minimum && value <= maximum
     ? value
@@ -151,11 +146,13 @@ function validSubmissionId(value: unknown): string | null {
 function normalizeLeaderboardEntry(value: unknown): LeaderboardEntry | null {
   if (!value || typeof value !== 'object') return null;
   const entry = value as LeaderboardEntry;
+  const name = validatePlayerName(entry.name);
   const threat = entry.threat === undefined || entry.threat === null
     ? null
     : validInteger(entry.threat, 1, 10000);
   if (typeof entry.id !== 'string'
-    || normalizeName(entry.name) !== entry.name
+    || !name.ok
+    || name.name !== entry.name
     || validInteger(entry.score, 0, 100000) === null
     || validDuration(entry.survivalMs) !== entry.survivalMs
     || (entry.threat !== undefined && entry.threat !== null && threat === null)

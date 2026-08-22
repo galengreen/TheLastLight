@@ -6,6 +6,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    allowedHosts: ['.onamp.dev'],
     proxy: {
       '/api': 'http://127.0.0.1:3000',
     },
