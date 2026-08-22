@@ -283,6 +283,7 @@ button { border-radius: 0; }
 }
 
 .contributor img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.contributor img.credit-icon { image-rendering: pixelated; }
 
 .contributor > span {
   position: absolute;

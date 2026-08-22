@@ -1,3 +1,11 @@
+License scope
+
+Except for the assets identified in ASSET-LICENSES.md, the source code and
+documentation in this repository are licensed under the MIT License below.
+The music files in src/assets/audio, and copies of those files included in
+builds or distributions, are expressly excluded from the MIT License. See
+ASSET-LICENSES.md for details.
+
 MIT License
 
 Copyright (c) 2026 Alexander Heffernan

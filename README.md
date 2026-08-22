@@ -142,9 +142,12 @@ npm run build
 ## Credits
 
 - **Alexander Heffernan** — creator, developer, game designer, and pixel-art pipeline direction
-- Original music generated for The Last Light
+- **Galen Green** — Mobile Developer
+- Original music generated with [Suno](https://suno.com/)
 - Built with Phaser and open-source web tooling
+
+The Last Light is not affiliated with or endorsed by Suno.
 
 ## License
 
-[MIT](LICENSE) © 2026 Alexander Heffernan
+The source code and documentation are available under the [MIT License](LICENSE) © 2026 Alexander Heffernan. The music in `src/assets/audio` is excluded from the MIT License; see [Asset Licensing](ASSET-LICENSES.md). The repository as a whole is therefore not offered under a single license. Bundled dependency notices are included in [Third-Party Notices](public/THIRD_PARTY_NOTICES.txt).
