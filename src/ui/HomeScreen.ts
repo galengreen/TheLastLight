@@ -8,6 +8,7 @@ import {
 } from '../api/client';
 import lastNightAliveUrl from '../assets/audio/Last Night Alive.mp3';
 import lastNightAliveAlternateUrl from '../assets/audio/Last Night Alive-2.mp3';
+import { validatePlayerName } from '../shared/nameValidator';
 
 interface HomeScreenOptions {
   onDeploy: (callsign: string) => void;
@@ -54,12 +55,14 @@ export class HomeScreen {
 
   private deploy(event: SubmitEvent): void {
     event.preventDefault();
-    const callsign = [...this.callsign.value.trim().replace(/\s+/g, ' ')].slice(0, 18).join('');
-    if ([...callsign].length < 2) {
-      this.notice.textContent = 'ENTER A CALLSIGN TO DEPLOY';
+    const result = validatePlayerName(this.callsign.value);
+    if (!result.ok) {
+      this.notice.textContent = result.reason.toUpperCase();
       this.callsign.focus();
       return;
     }
+    const callsign = result.name;
+    this.callsign.value = callsign;
     localStorage.setItem(CALLSIGN_KEY, callsign);
     this.fadeOutMenuMusic();
     this.options.onDeploy(callsign);

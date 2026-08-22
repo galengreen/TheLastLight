@@ -18,6 +18,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "obscenity": "^0.4.6",
     "phaser": "^3.90.0"
   },
   "devDependencies": {
