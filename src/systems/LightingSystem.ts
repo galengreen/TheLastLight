@@ -1,13 +1,26 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/constants';
 
+const BEAM_TEXTURE_SOURCE_X = 40;
+const BEAM_TEXTURE_LENGTH = 512 - BEAM_TEXTURE_SOURCE_X;
+const PLAYER_BEAM_MAX_ALPHA = 0.65;
+const PLAYER_BEAM_MIN_ALPHA = 0.035;
+const PLAYER_RADIAL_MAX_ALPHA = 0.92;
+const PLAYER_RADIAL_MIN_ALPHA = 0.52;
+
 interface LightPosition {
   x: number;
   y: number;
 }
 
 export interface ShadowCaster extends LightPosition {
-  radius: number;
+  halfWidth: number;
+  halfHeight: number;
+  displayWidth: number;
+  displayHeight: number;
+  rotation: number;
+  textureKey: string;
+  frameName: string;
 }
 
 interface ExplosionLight extends LightPosition {
@@ -35,6 +48,7 @@ export class LightingSystem {
   private readonly glows: Phaser.GameObjects.Image[];
   private readonly shadows: Phaser.GameObjects.RenderTexture;
   private readonly projectedShadowMask: Phaser.GameObjects.Image;
+  private readonly casterShadowMask: Phaser.GameObjects.Image;
   private readonly flareColor: Phaser.GameObjects.Image;
   private readonly flareBloom: Phaser.GameObjects.Image;
   private readonly emitters: LightPosition[];
@@ -64,10 +78,13 @@ export class LightingSystem {
       .setTint(0xffd08a)
       .setAlpha(0.045)
       .setBlendMode(Phaser.BlendModes.ADD);
-    this.shadows = scene.add.renderTexture(0, 0, GAME_WIDTH, GAME_HEIGHT).setOrigin(0).setDepth(17);
+    this.shadows = scene.add.renderTexture(0, 0, GAME_WIDTH, GAME_HEIGHT).setOrigin(0).setDepth(1);
     this.projectedShadowMask = scene.make.image({ x: 0, y: 0, key: 'projected-shadow', add: false })
       .setOrigin(0, 0.5)
       .setTint(0x000000);
+    this.casterShadowMask = scene.make.image({ x: 0, y: 0, key: 'soldier', add: false })
+      .setOrigin(0.5)
+      .setTintFill(0x000000);
     this.flareColor = scene.add.image(0, 0, 'flare-color-mask')
       .setDepth(15)
       .setDisplaySize(1300, 1300)
@@ -112,6 +129,7 @@ export class LightingSystem {
     playerX: number,
     playerY: number,
     aimAngle: number,
+    playerBeamLength = BEAM_TEXTURE_LENGTH,
     casters: ShadowCaster[] = [],
     emberLights: LightPosition[] = [],
   ): void {
@@ -131,8 +149,25 @@ export class LightingSystem {
       this.flareBloom.setAlpha(0);
     }
 
-    this.playerBeam.setPosition(playerX, playerY).setRotation(aimAngle);
-    this.eraseDirectionalLight(playerX, playerY, aimAngle, 1, 0.88);
+    const playerBeamScale = Math.max(0.01, playerBeamLength / BEAM_TEXTURE_LENGTH);
+    const playerBeamRange = Phaser.Math.Clamp(playerBeamLength / BEAM_TEXTURE_LENGTH, 0, 1);
+    const playerBeamAlpha = Phaser.Math.Linear(
+      PLAYER_BEAM_MAX_ALPHA,
+      PLAYER_BEAM_MIN_ALPHA,
+      playerBeamRange,
+    );
+    const playerLightAlpha = Phaser.Math.Linear(0.995, 0.78, playerBeamRange);
+    const playerRadialAlpha = Phaser.Math.Linear(
+      PLAYER_RADIAL_MAX_ALPHA,
+      PLAYER_RADIAL_MIN_ALPHA,
+      playerBeamRange,
+    );
+    this.playerBeam
+      .setPosition(playerX, playerY)
+      .setRotation(aimAngle)
+      .setScale(playerBeamScale)
+      .setAlpha(playerBeamAlpha);
+    this.eraseDirectionalLight(playerX, playerY, aimAngle, playerBeamScale, playerLightAlpha);
 
     if (!this.generatorDestroyed && this.outpostPower > 0.01) {
       this.emitters.forEach((light, index) => {
@@ -142,7 +177,7 @@ export class LightingSystem {
       });
     }
 
-    this.radialMask.setPosition(playerX, playerY).setScale(0.4).setAlpha(0.52);
+    this.radialMask.setPosition(playerX, playerY).setScale(0.4).setAlpha(playerRadialAlpha);
     this.darkness.erase(this.radialMask);
 
     if (!this.generatorDestroyed && this.outpostPower > 0.01) {
@@ -177,7 +212,7 @@ export class LightingSystem {
       this.lastShadowRedraw = this.scene.time.now;
       this.shadows.clear();
       this.shadows.beginDraw();
-      this.drawProjectedShadows(playerX, playerY, aimAngle, 470, 0.44, 0.82, casters);
+      this.drawProjectedShadows(playerX, playerY, aimAngle, playerBeamLength, 0.44, 0.82, casters);
       if (!this.generatorDestroyed && this.outpostPower > 0.01) {
         this.emitters.forEach((light, index) => {
           if (this.disabledLights.has(index)) return;
@@ -373,30 +408,41 @@ export class LightingSystem {
   ): void {
     casters.forEach((caster) => {
       const distance = Phaser.Math.Distance.Between(lightX, lightY, caster.x, caster.y);
-      if (distance <= caster.radius + 8 || distance >= range) return;
+      if (distance <= Math.max(caster.halfWidth, caster.halfHeight) + 8 || distance >= range) return;
 
       const angle = Phaser.Math.Angle.Between(lightX, lightY, caster.x, caster.y);
       const angleFromBeam = Math.abs(Phaser.Math.Angle.Wrap(angle - lightAngle));
-      const angularRadius = Math.atan2(caster.radius, distance);
+      const angularRadius = Math.atan2(Math.max(caster.halfWidth, caster.halfHeight), distance);
       if (angleFromBeam > spread + angularRadius) return;
 
       const directionX = Math.cos(angle);
       const directionY = Math.sin(angle);
-      const length = Phaser.Math.Clamp(72 + caster.radius * 2.2 + (range - distance) * 0.2, 72, 190);
+      const projectedHalfWidth = Math.abs(directionY) * caster.halfWidth
+        + Math.abs(directionX) * caster.halfHeight;
+      const graphicHalfWidth = Math.max(caster.halfWidth, caster.halfHeight);
+      const shadowHalfWidth = Math.max(projectedHalfWidth, graphicHalfWidth * 0.92);
+      const length = range - distance;
       const distanceFade = 1 - distance / range;
       const edgeFade = spread >= Math.PI
         ? 1
         : 1 - Phaser.Math.Clamp((angleFromBeam - spread * 0.65) / (spread * 0.35), 0, 1);
-      const alpha = strength * (0.1 + distanceFade * 0.1) * edgeFade;
+      const alpha = strength * (0.14 + distanceFade * 0.16) * edgeFade;
+      const shadowAlpha = Phaser.Math.Clamp(alpha * 4.2, 0, 1);
+
+      this.casterShadowMask
+        .setTexture(caster.textureKey, caster.frameName)
+        .setPosition(caster.x, caster.y)
+        .setRotation(caster.rotation)
+        .setDisplaySize(caster.displayWidth, caster.displayHeight)
+        .setAlpha(shadowAlpha * 0.72)
+        .setTintFill(0x000000);
+      this.shadows.batchDraw(this.casterShadowMask);
 
       this.projectedShadowMask
-        .setPosition(
-          caster.x + directionX * caster.radius * 0.45,
-          caster.y + directionY * caster.radius * 0.45,
-        )
+        .setPosition(caster.x, caster.y)
         .setRotation(angle)
-        .setDisplaySize(length * 1.12, caster.radius * 4.2)
-        .setAlpha(alpha * 3.1);
+        .setDisplaySize(length, shadowHalfWidth * 2)
+        .setAlpha(shadowAlpha);
       this.shadows.batchDraw(this.projectedShadowMask);
     });
   }
