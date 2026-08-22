@@ -3,10 +3,9 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../config/constants';
 
 const BEAM_TEXTURE_SOURCE_X = 40;
 const BEAM_TEXTURE_LENGTH = 512 - BEAM_TEXTURE_SOURCE_X;
-const PLAYER_BEAM_MAX_ALPHA = 0.65;
-const PLAYER_BEAM_MIN_ALPHA = 0.035;
-const PLAYER_RADIAL_MAX_ALPHA = 0.92;
-const PLAYER_RADIAL_MIN_ALPHA = 0.52;
+const PLAYER_BEAM_ALPHA = 0.035;
+const PLAYER_LIGHT_ALPHA = 0.78;
+const PLAYER_RADIAL_ALPHA = 0.52;
 
 interface LightPosition {
   x: number;
@@ -129,7 +128,6 @@ export class LightingSystem {
     playerX: number,
     playerY: number,
     aimAngle: number,
-    playerBeamLength = BEAM_TEXTURE_LENGTH,
     casters: ShadowCaster[] = [],
     emberLights: LightPosition[] = [],
   ): void {
@@ -149,25 +147,12 @@ export class LightingSystem {
       this.flareBloom.setAlpha(0);
     }
 
-    const playerBeamScale = Math.max(0.01, playerBeamLength / BEAM_TEXTURE_LENGTH);
-    const playerBeamRange = Phaser.Math.Clamp(playerBeamLength / BEAM_TEXTURE_LENGTH, 0, 1);
-    const playerBeamAlpha = Phaser.Math.Linear(
-      PLAYER_BEAM_MAX_ALPHA,
-      PLAYER_BEAM_MIN_ALPHA,
-      playerBeamRange,
-    );
-    const playerLightAlpha = Phaser.Math.Linear(0.995, 0.78, playerBeamRange);
-    const playerRadialAlpha = Phaser.Math.Linear(
-      PLAYER_RADIAL_MAX_ALPHA,
-      PLAYER_RADIAL_MIN_ALPHA,
-      playerBeamRange,
-    );
     this.playerBeam
       .setPosition(playerX, playerY)
       .setRotation(aimAngle)
-      .setScale(playerBeamScale)
-      .setAlpha(playerBeamAlpha);
-    this.eraseDirectionalLight(playerX, playerY, aimAngle, playerBeamScale, playerLightAlpha);
+      .setScale(1)
+      .setAlpha(PLAYER_BEAM_ALPHA);
+    this.eraseDirectionalLight(playerX, playerY, aimAngle, 1, PLAYER_LIGHT_ALPHA);
 
     if (!this.generatorDestroyed && this.outpostPower > 0.01) {
       this.emitters.forEach((light, index) => {
@@ -177,7 +162,7 @@ export class LightingSystem {
       });
     }
 
-    this.radialMask.setPosition(playerX, playerY).setScale(0.4).setAlpha(playerRadialAlpha);
+    this.radialMask.setPosition(playerX, playerY).setScale(0.4).setAlpha(PLAYER_RADIAL_ALPHA);
     this.darkness.erase(this.radialMask);
 
     if (!this.generatorDestroyed && this.outpostPower > 0.01) {
@@ -212,7 +197,7 @@ export class LightingSystem {
       this.lastShadowRedraw = this.scene.time.now;
       this.shadows.clear();
       this.shadows.beginDraw();
-      this.drawProjectedShadows(playerX, playerY, aimAngle, playerBeamLength, 0.44, 0.82, casters);
+      this.drawProjectedShadows(playerX, playerY, aimAngle, BEAM_TEXTURE_LENGTH, 0.44, 0.82, casters);
       if (!this.generatorDestroyed && this.outpostPower > 0.01) {
         this.emitters.forEach((light, index) => {
           if (this.disabledLights.has(index)) return;
